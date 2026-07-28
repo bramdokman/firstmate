@@ -544,6 +544,7 @@ check_task_pr() {
   ] | length')
   [ "$incomplete" -eq 0 ] || return 0
   green=$(api_jq '[.check_runs[] | select(.conclusion == "success")] | length')
+  # shellcheck disable=SC2016 # single quotes are deliberate: $real, $meta, and $attested are jq --arg variables, not shell expansions.
   real=$(api_jq \
     --arg real "$TEST_JOB_PATTERN" \
     --arg meta "$META_JOB_PATTERN" \
@@ -555,6 +556,7 @@ check_task_pr() {
       | select((.name | test($attested; "i")) | not)
     ] | length')
   if [ "$green" -gt 0 ] && [ "$real" -eq 0 ]; then
+    # shellcheck disable=SC2016 # single quotes are deliberate: $pattern is a jq --arg variable, not a shell expansion.
     not_applicable=$(api_jq \
       --arg pattern "$NOT_APPLICABLE_PATTERN" \
       '[.check_runs[]
@@ -562,6 +564,7 @@ check_task_pr() {
         | select(.name | test($pattern; "i"))
       ] | length')
     [ "$not_applicable" -eq 0 ] || return 0
+    # shellcheck disable=SC2016 # single quotes are deliberate: $pattern is a jq --arg variable, not a shell expansion.
     evaluated=$(api_jq \
       --arg pattern "$APPLICABILITY_JOB_PATTERN" \
       '[.check_runs[]
@@ -641,6 +644,7 @@ check_deploy_run() {
     '.jobs | if type == "array" then length else -1 end' 'jobs' || return 0
   completed=$(api_jq \
     '[.jobs[] | select(.conclusion != null and .conclusion != "skipped")] | length')
+  # shellcheck disable=SC2016 # single quotes are deliberate: $selector is a jq --arg variable, not a shell expansion.
   selector_count=$(api_jq --arg selector "$DEPLOY_SELECTOR_PATTERN" \
     '[.jobs[]
       | select(.conclusion != null and .conclusion != "skipped")
@@ -661,6 +665,7 @@ check_deploys() {
   api_counts_complete "$repo deploy workflows" \
     '.workflows | if type == "array" then length else -1 end' 'workflows'
   [ "$?" -ne 2 ] || return 0
+  # shellcheck disable=SC2016 # single quotes are deliberate: $pattern is a jq --arg variable, not a shell expansion.
   workflows=$(api_jq -r --arg pattern "$DEPLOY_WORKFLOW_PATTERN" '
     .workflows[]
     | select((.name + " " + .path) | test($pattern; "i"))
@@ -680,6 +685,7 @@ check_deploys() {
         "GitHub REST omitted workflow runs"
       continue
     fi
+    # shellcheck disable=SC2016 # single quotes are deliberate: $limit, $maxage, $run, and $ts are jq variables, not shell expansions.
     runs=$(api_jq -r --argjson limit "$DEPLOY_RUNS" \
       --argjson maxage "$((DEPLOY_MAX_AGE_DAYS * 86400))" '
       .workflow_runs
