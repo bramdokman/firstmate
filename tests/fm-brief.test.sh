@@ -292,13 +292,16 @@ test_ship_project_memory_wording() {
 }
 
 test_issue_linked_ship_requires_pr_closing_keyword() {
-  local home id brief dod_line keyword_line
+  local home id proj anchor spec brief dod_line keyword_line anchor_line
   home="$TMP_ROOT/issue-closing-home"
   write_registry "$home"
 
-  for id_proj in "fix-issue-841:no-registry-proj" "fix-issue-338:direct-proj"; do
-    id=${id_proj%%:*}
-    proj=${id_proj##*:}
+  for spec in \
+    "fix-issue-841|no-registry-proj|Firstmate will then instruct you to run /no-mistakes to validate and ship a PR." \
+    "fix-issue-338|direct-proj|When it is implemented and committed, push your branch and open a PR with \`gh-axi\`"; do
+    id=${spec%%|*}
+    proj=${spec#*|}; proj=${proj%%|*}
+    anchor=${spec##*|}
     FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" "$proj" >/dev/null 2>&1
     brief="$home/data/$id/brief.md"
     assert_grep "**PR body:** if the task names a GitHub issue, put the closing keyword (\`Closes #123\`) on its own line at the end of the PR body - never in the PR title." "$brief" \
@@ -307,8 +310,11 @@ test_issue_linked_ship_requires_pr_closing_keyword() {
       "$id: closing-keyword guidance implied that the keyword proves closure"
     dod_line=$(grep -n -F -- "# Definition of done" "$brief" | cut -d: -f1)
     keyword_line=$(grep -n -F -- "**PR body:**" "$brief" | cut -d: -f1)
+    anchor_line=$(grep -n -F -- "$anchor" "$brief" | cut -d: -f1)
     [ -n "$dod_line" ] && [ -n "$keyword_line" ] && [ "$dod_line" -lt "$keyword_line" ] \
       || fail "$id: closing-keyword step is nested in the Rules list instead of standing alone under Definition of done"
+    [ -n "$anchor_line" ] && [ "$keyword_line" -lt "$anchor_line" ] \
+      || fail "$id: closing-keyword step is emitted after the step that creates the PR body"
   done
 
   id="fix-issue-local"
