@@ -909,6 +909,14 @@ EOF
     if ! status_is_paused_or_captain_held "$last" && [ -e "$STATE/.paused-$key" ]; then
       clear_pause_tracking "$w"
     fi
+    # The merge recheck throttle is anchored on the status file, never on the pane
+    # hash, so it survives every redraw of an intentionally idle pane exactly like
+    # its .paused-resurfaced- sibling. It is dropped only where the lane genuinely
+    # leaves the classification - here (its status moved off the terminal-done
+    # wait) and in clear_pause_state.
+    if [ -e "$STATE/.merge-resurfaced-$key" ] && ! status_line_can_be_terminal_done_wait "$last"; then
+      rm -f "$STATE/.merge-resurfaced-$key"
+    fi
     if [ "$kind" = secondmate ] && ! status_is_paused "$last"; then
       continue
     fi
@@ -921,7 +929,6 @@ EOF
     ssf="$STATE/.stale-since-$key"
     ewf="$STATE/.wedge-escalations-$key"
     pf="$STATE/.paused-$key"   # flag: this key's stale is using the bounded pause cadence
-    mrf="$STATE/.merge-resurfaced-$key"   # throttle: last merge-monitored recheck
     prev=$(cat "$hf" 2>/dev/null || true)
     # Busy match: a backend's native semantic state when available (herdr), else
     # the last 6 non-blank lines only (the TUI footer area, where every verified
@@ -1044,7 +1051,7 @@ EOF
         if [ "$busy_now" -eq 0 ] && busy_turn_over_age "$task"; then
           wedge_timer_check "$w" "$ssf" "busy (no completed turn)" "$ewf"
         else
-          rm -f "$ssf" "$ewf" "$mrf"
+          rm -f "$ssf" "$ewf"
         fi
         if [ -e "$pf" ] && { [ "$n" -ge 2 ] || ! status_is_paused_or_captain_held "$(last_status_line "$STATE/$(window_to_task "$w" "$STATE").status")"; }; then
           clear_pause_tracking "$w"
@@ -1056,7 +1063,7 @@ EOF
       if [ "$busy_now" -eq 0 ] && busy_turn_over_age "$task"; then
         wedge_timer_check "$w" "$ssf" "busy (no completed turn)" "$ewf"
       else
-        rm -f "$ssf" "$ewf" "$mrf"
+        rm -f "$ssf" "$ewf"
       fi
       task=$(window_to_task "$w" "$STATE")
       if ! afk_present && status_is_paused_or_captain_held "$(last_status_line "$STATE/$task.status")" && [ "$busy_now" -ne 0 ]; then

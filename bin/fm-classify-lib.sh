@@ -426,6 +426,22 @@ status_is_terminal_done_wait() {  # <status-file>
   [ -z "$(status_open_decisions "$f")" ]
 }
 
+# 0 if a single status line's verb can still belong to a lane-level terminal-done
+# wait: the completion itself, or the trailing declared pause that describes the
+# external wait. This is the exact one-line NEGATION of the whole-stream fold
+# above - that fold can only end at done_wait=1 when the last substantive line
+# carries one of these two verbs - so it is both the cheap pre-gate for
+# stale_is_merge_monitored and the test consumers use to decide that a lane has
+# LEFT this classification. Both read it here so the two cannot drift apart.
+status_line_can_be_terminal_done_wait() {  # <status-line>
+  local verb
+  verb=$(status_line_verb "$1")
+  case "$verb" in
+    done|"${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}") return 0 ;;
+  esac
+  return 1
+}
+
 # 0 if a stale lane has both terminal completion evidence and the exact,
 # authenticated merge-poll artifact set recorded for that task and PR.
 # Consumers source fm-pr-lib.sh and pass their canonical poll template, plus the
@@ -437,13 +453,9 @@ status_is_terminal_done_wait() {  # <status-file>
 # uncertain - a missing task, an unavailable validator, an unreadable or
 # mismatched artifact set - returns nonzero and therefore surfaces.
 stale_is_merge_monitored() {  # <task> <state> <poll-template> <last-status-line>
-  local task=$1 state=$2 template=$3 last=$4 verb
+  local task=$1 state=$2 template=$3 last=$4
   [ -n "$task" ] || return 1
-  verb=$(status_line_verb "$last")
-  case "$verb" in
-    done|"${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}") ;;
-    *) return 1 ;;
-  esac
+  status_line_can_be_terminal_done_wait "$last" || return 1
   [ -f "$state/$task.pr-poll" ] || return 1
   command -v fm_pr_poll_artifacts_valid >/dev/null 2>&1 || return 1
   status_is_terminal_done_wait "$state/$task.status" || return 1

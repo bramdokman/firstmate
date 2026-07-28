@@ -304,6 +304,16 @@ EOF
     > "$state/closed-decision.status"
   status_is_terminal_done_wait "$state/closed-decision.status" \
     || fail "a resolved keyed decision still blocked lane-level terminal completion"
+  # The single-line negation consumers use to detect that a lane LEFT the
+  # terminal-done wait must agree with the whole-stream fold's own verb set.
+  status_line_can_be_terminal_done_wait 'done: PR ready' \
+    || fail "a done verb was not accepted as part of a terminal-done wait"
+  status_line_can_be_terminal_done_wait 'paused: awaiting merge' \
+    || fail "the pause verb was not accepted as part of a terminal-done wait"
+  status_line_can_be_terminal_done_wait 'working: validation resumed' \
+    && fail "a resumed working line was accepted as part of a terminal-done wait"
+  status_line_can_be_terminal_done_wait '' \
+    && fail "an empty status line was accepted as part of a terminal-done wait"
   pass "classifier primitives: keyed decisions and activity phases, captain relevance, window-to-task, and overrides"
 }
 
@@ -633,6 +643,26 @@ test_merge_monitored_stale_resurfaces_on_bounded_cadence() {
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after the merge-monitored recheck failed"
   grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null \
     || fail "the merge-monitored recheck was not queued"
+
+  # The throttle is anchored on the lane's status file, NOT on the pane hash: an
+  # idle pane that merely redraws (a footer, a clock, a token counter) must not
+  # reset the cadence back to "never rechecked" and re-wake once per redraw.
+  : > "$out"
+  printf 'finished, awaiting merge queue (token 2)\n' > "$dir/pane.txt"
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$dir/pane.txt" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" \
+    FM_PAUSE_RESURFACE_SECS=240 FM_STALE_ESCALATE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  pid=$!
+  if ! wait_live "$pid" 70; then
+    reap "$pid"; fail "a pane redraw reset the merge recheck throttle and re-woke inside the window: $(cat "$out")"
+  fi
+  grep -F "absorbed stale (terminal done, merge poll armed" "$state/.watch-triage.log" >/dev/null \
+    || fail "the redrawn pane never reached the merge-monitored absorb"
+  [ ! -s "$out" ] || fail "a redrawn merge-monitored pane printed a second wake inside the recheck window"
+  [ ! -s "$state/.wake-queue" ] || fail "a redrawn merge-monitored pane enqueued a second wake inside the recheck window"
+  [ -e "$state/.merge-resurfaced-$key" ] || fail "a pane redraw erased the merge recheck throttle"
+  reap "$pid"
   unset FM_FAKE_CREW_STATE
   pass "a merge-monitored terminal lane rides the bounded recheck cadence instead of being suppressed permanently"
 }
