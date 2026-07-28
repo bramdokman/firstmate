@@ -399,7 +399,10 @@ stale_is_terminal() {  # <window> <state>
 # 0 if a task's latest substantive status is terminal done. A trailing paused:
 # declaration preserves that completion state because firstmate may have appended
 # it after the worker's final report to describe the external merge wait.
-# Any other later status invalidates the terminal-done state.
+# Any other later status invalidates the terminal-done state, and so does any
+# decision still open under the status-fold contract above: status_open_decisions
+# is authoritative over this last-event-wins read, so a later default-keyed done:
+# never masks a keyed needs-decision/blocked the captain has yet to answer.
 status_is_terminal_done_wait() {  # <status-file>
   local f=$1 line verb key done_wait=0 stripped
   [ -f "$f" ] || return 1
@@ -419,16 +422,30 @@ status_is_terminal_done_wait() {  # <status-file>
       *) done_wait=0 ;;
     esac
   done < "$f"
-  [ "$done_wait" -eq 1 ]
+  [ "$done_wait" -eq 1 ] || return 1
+  [ -z "$(status_open_decisions "$f")" ]
 }
 
 # 0 if a stale lane has both terminal completion evidence and the exact,
 # authenticated merge-poll artifact set recorded for that task and PR.
-# Consumers source fm-pr-lib.sh and pass their canonical poll template.
-stale_is_merge_monitored() {  # <window> <state> <poll-template>
-  local win=$1 state=$2 template=$3 task
+# Consumers source fm-pr-lib.sh and pass their canonical poll template, plus the
+# task and the last status line they have ALREADY read, so this stays cheap on
+# the per-poll stale loop. The two pre-gates are exact, not heuristic: the fold
+# above can only end at done_wait=1 when the last substantive line's verb is
+# done or the pause verb, and an unarmed lane has no poll data file at all, so
+# neither gate can absorb a lane the full check would have surfaced. Everything
+# uncertain - a missing task, an unavailable validator, an unreadable or
+# mismatched artifact set - returns nonzero and therefore surfaces.
+stale_is_merge_monitored() {  # <task> <state> <poll-template> <last-status-line>
+  local task=$1 state=$2 template=$3 last=$4 verb
+  [ -n "$task" ] || return 1
+  verb=$(status_line_verb "$last")
+  case "$verb" in
+    done|"${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}") ;;
+    *) return 1 ;;
+  esac
+  [ -f "$state/$task.pr-poll" ] || return 1
   command -v fm_pr_poll_artifacts_valid >/dev/null 2>&1 || return 1
-  task=$(window_to_task "$win" "$state")
   status_is_terminal_done_wait "$state/$task.status" || return 1
   fm_pr_poll_artifacts_valid "$state" "$task" "$template"
 }

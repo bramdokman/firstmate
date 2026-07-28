@@ -117,6 +117,57 @@ arm_merge_poll() {  # <state> <task-id> <pr-url>
   )
 }
 
+# stale_is_merge_monitored with the REAL bin/fm-pr-lib.sh validator loaded, in a
+# subshell so the PR library stays out of the other tests' function table (and so
+# the absent-validator fail-closed default keeps applying to them).
+merge_monitored_p() {  # <task> <state> <last-status-line>
+  (
+    # shellcheck source=/dev/null
+    . "$ROOT/bin/fm-pr-lib.sh"
+    stale_is_merge_monitored "$1" "$2" "$ROOT/bin/fm-pr-poll.sh" "$3"
+  )
+}
+
+# Arrange, in a fresh case dir, the exact lane shape the merge-monitored absorb
+# targets: a terminal `done:` status naming <url>, a matching meta, a fully valid
+# armed merge poll for that same PR, a primed .seen-* so the signal scan stays
+# quiet, and one already-recorded pane hash so the next poll is stably stale.
+# Echoes the case dir; task id is always "queued".
+arrange_merge_monitored_case() {  # <case-name> <window> <pr-url>
+  local name=$1 window=$2 url=$3 dir state key sig
+  dir=$(make_case "$name"); state="$dir/state"
+  printf 'finished, awaiting merge queue\n' > "$dir/pane.txt"
+  fm_write_meta "$state/queued.meta" \
+    "window=$window" "kind=ship" "backend=tmux" "pr=$url"
+  printf 'done: PR %s checks green\n' "$url" > "$state/queued.status"
+  arm_merge_poll "$state" queued "$url" || return 1
+  sig=$(seen_sig "$state/queued.status"); printf '%s' "$sig" > "$state/.seen-queued_status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  printf '%s' "$(hash_text "finished, awaiting merge queue")" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  printf '%s\n' "$dir"
+}
+
+# Drive the watcher over an arranged case and require ORDINARY stale escalation
+# (printed reason + durable queue entry + exit), i.e. the merge-poll exemption
+# did NOT apply. <detail> names the boundary under test in any failure.
+expect_ordinary_stale_surfaced() {  # <case-dir> <window> <detail>
+  local dir=$1 window=$2 detail=$3 state fakebin out drain_out pid
+  state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"; drain_out="$dir/drain.out"
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$dir/pane.txt" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" \
+    FM_PAUSE_RESURFACE_SECS=999999 FM_STALE_ESCALATE_SECS=240 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  pid=$!
+  if ! wait_for_exit "$pid" 40; then
+    reap "$pid"; fail "$detail: the merge-poll exemption absorbed a lane it must not have"
+  fi
+  grep -Fx "stale: $window" "$out" >/dev/null || fail "$detail: no ordinary stale wake was printed"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "$detail: drain failed"
+  grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null \
+    || fail "$detail: the stale wake was not queued"
+}
+
 # --- pure classifier predicates (fm-classify-lib.sh) ------------------------
 
 test_signal_reason_is_actionable_classifier() {
@@ -239,6 +290,20 @@ EOF
   printf 'done: lane complete\npaused [key=legal]: unrelated activity waiting\n' > "$state/keyed-pause.status"
   status_is_terminal_done_wait "$state/keyed-pause.status" \
     && fail "a keyed sub-activity pause preserved lane-level terminal completion"
+  # The status-fold contract outranks the last-event-wins read: a later terminal
+  # line never clears a decision the captain still owes an answer to.
+  printf 'needs-decision [key=api]: pick the response shape\ndone: PR ready\npaused: awaiting merge\n' \
+    > "$state/masked-decision.status"
+  status_is_terminal_done_wait "$state/masked-decision.status" \
+    && fail "a later done: masked a still-open keyed captain decision"
+  printf 'blocked: needs a deploy credential\ndone: PR ready\npaused: awaiting merge\n' \
+    > "$state/masked-block.status"
+  status_is_terminal_done_wait "$state/masked-block.status" \
+    && fail "a later done: masked a still-open default-keyed block"
+  printf 'needs-decision [key=api]: pick the response shape\nresolved [key=api]: settled on cursors\ndone: PR ready\npaused: awaiting merge\n' \
+    > "$state/closed-decision.status"
+  status_is_terminal_done_wait "$state/closed-decision.status" \
+    || fail "a resolved keyed decision still blocked lane-level terminal completion"
   pass "classifier primitives: keyed decisions and activity phases, captain relevance, window-to-task, and overrides"
 }
 
@@ -528,6 +593,116 @@ test_terminal_done_with_armed_merge_poll_is_absorbed() {
     || fail "mid-task stop with an armed poll did not return to ordinary stale detection"
   unset FM_FAKE_CREW_STATE
   pass "only terminal done with an authenticated armed merge poll suppresses pane wedge escalation"
+}
+
+# --- the merge-monitored absorb is BOUNDED, never permanent -----------------
+# bin/fm-pr-poll.sh emits only when the PR actually MERGED - it is silent on a PR
+# closed unmerged, silently ejected from the merge queue, or wedged in one. So
+# this absorb rides the same FM_PAUSE_RESURFACE_SECS recheck a declared pause
+# uses: past that window the lane re-surfaces once per window for confirmation,
+# as a recheck and never as a wedge.
+test_merge_monitored_stale_resurfaces_on_bounded_cadence() {
+  local dir state fakebin out drain_out window key pid statusf back sig
+  window="test:fm-queued-aged"
+  dir=$(arrange_merge_monitored_case merge-monitored-recheck "$window" \
+    "https://github.com/example/repo/pull/9") || fail "could not arrange a valid armed merge poll"
+  state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"; drain_out="$dir/drain.out"
+  statusf="$state/queued.status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  # Age the completion itself past the recheck window (the cadence is anchored on
+  # the status file, not on a per-hash marker), then re-prime .seen-*.
+  back=$(( $(date +%s) - 500 ))
+  if [ "$(uname)" = Darwin ]; then touch -mt "$(date -r "$back" '+%Y%m%d%H%M.%S')" "$statusf"
+  else touch -m -d "@$back" "$statusf"; fi
+  sig=$(seen_sig "$statusf"); printf '%s' "$sig" > "$state/.seen-queued_status"
+  export FM_FAKE_CREW_STATE='state: done · source: run-step · checks green'
+
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$dir/pane.txt" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" \
+    FM_PAUSE_RESURFACE_SECS=240 FM_STALE_ESCALATE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  pid=$!
+  if ! wait_for_exit "$pid" 40; then
+    reap "$pid"; fail "a merge-monitored lane past the recheck window was suppressed forever"
+  fi
+  grep -F "stale: $window" "$out" >/dev/null || fail "the merge-monitored recheck printed no stale wake"
+  grep -F "merge poll armed" "$out" >/dev/null || fail "the recheck was not labeled a merge-poll recheck"
+  grep -F "possible wedge" "$out" >/dev/null && fail "a merge-monitored recheck was mislabeled a possible wedge"
+  [ -e "$state/.merge-resurfaced-$key" ] || fail "the merge-monitored re-surface throttle marker was not recorded"
+  [ ! -e "$state/.stale-since-$key" ] || fail "a merge-monitored recheck must not use the wedge timer"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after the merge-monitored recheck failed"
+  grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null \
+    || fail "the merge-monitored recheck was not queued"
+  unset FM_FAKE_CREW_STATE
+  pass "a merge-monitored terminal lane rides the bounded recheck cadence instead of being suppressed permanently"
+}
+
+# --- absent / corrupt / mismatched poll artifacts: still escalate ------------
+# The exemption is AUTHENTICATED, not merely present-looking, so every artifact
+# state short of a fully valid armed poll for the lane's own recorded PR must
+# fall through to ordinary stale classification.
+#
+# Two layers, because bin/fm-pr-check-migrate.sh runs before triage on every
+# watcher START and REBUILDS any poll it can re-arm from the lane meta:
+#   1. Artifact mutations that the migration would repair are decided by the
+#      predicate against real fm-pr-lib.sh artifacts - which is exactly the state
+#      a poll can reach mid-run, while a watcher is already looping.
+#   2. The two arrangements the migration CANNOT repair (a lane meta whose PR
+#      reference is unusable or gone: it quarantines those unarmed) are proved
+#      end to end through a real watcher subprocess.
+test_invalid_merge_poll_artifacts_still_surface() {
+  local dir state window url last
+  window="test:fm-queued"; url="https://github.com/example/repo/pull/12"
+  last="done: PR $url checks green"
+
+  dir=$(arrange_merge_monitored_case invalid-poll-baseline "$window" "$url") \
+    || fail "could not arrange a valid armed merge poll"
+  state="$dir/state"
+  merge_monitored_p queued "$state" "$last" \
+    || fail "a fully authenticated armed poll was not treated as merge-monitored"
+  rm -f "$state/queued.pr-poll" "$state/queued.check.sh" "$state/queued.pr-poll-registration"
+  merge_monitored_p queued "$state" "$last" \
+    && fail "absent poll artifacts were treated as merge-monitored"
+
+  dir=$(arrange_merge_monitored_case invalid-poll-mismatch "$window" "$url") \
+    || fail "could not arrange a valid armed merge poll"
+  fm_write_meta "$dir/state/queued.meta" "window=$window" "kind=ship" "backend=tmux" \
+    "pr=https://github.com/example/repo/pull/99"
+  merge_monitored_p queued "$dir/state" "$last" \
+    && fail "a poll armed for a different PR than the lane records was treated as merge-monitored"
+
+  dir=$(arrange_merge_monitored_case invalid-poll-tampered "$window" "$url") \
+    || fail "could not arrange a valid armed merge poll"
+  printf '\necho tampered\n' >> "$dir/state/queued.check.sh"
+  merge_monitored_p queued "$dir/state" "$last" \
+    && fail "a check script that no longer matches the poll template was treated as merge-monitored"
+
+  dir=$(arrange_merge_monitored_case invalid-poll-corrupt "$window" "$url") \
+    || fail "could not arrange a valid armed merge poll"
+  printf 'garbage\n' > "$dir/state/queued.pr-poll"
+  merge_monitored_p queued "$dir/state" "$last" \
+    && fail "corrupt poll data no longer matching its registration was treated as merge-monitored"
+
+  dir=$(arrange_merge_monitored_case invalid-poll-unregistered "$window" "$url") \
+    || fail "could not arrange a valid armed merge poll"
+  rm -f "$dir/state/queued.pr-poll-registration"
+  merge_monitored_p queued "$dir/state" "$last" \
+    && fail "a poll with no registration record was treated as merge-monitored"
+
+  export FM_FAKE_CREW_STATE='state: unknown · source: none · no current-state source available'
+  window="test:fm-poll-badpr"
+  dir=$(arrange_merge_monitored_case invalid-poll-unusable-pr "$window" \
+    "https://github.com/example/repo/pull/13") || fail "could not arrange a valid armed merge poll"
+  fm_write_meta "$dir/state/queued.meta" "window=$window" "kind=ship" "backend=tmux" "pr=not-a-pr-reference"
+  expect_ordinary_stale_surfaced "$dir" "$window" "an armed poll whose lane records an unusable PR reference"
+
+  window="test:fm-poll-nopr"
+  dir=$(arrange_merge_monitored_case invalid-poll-missing-pr "$window" \
+    "https://github.com/example/repo/pull/14") || fail "could not arrange a valid armed merge poll"
+  fm_write_meta "$dir/state/queued.meta" "window=$window" "kind=ship" "backend=tmux"
+  expect_ordinary_stale_surfaced "$dir" "$window" "an armed poll whose lane no longer records any PR"
+  unset FM_FAKE_CREW_STATE
+  pass "absent, corrupt, mismatched, tampered, and unusably-referenced merge polls all still escalate as stale"
 }
 
 # --- stale pane, STALE terminal status overridden by an active run: absorbed ---
@@ -1635,6 +1810,8 @@ test_working_note_not_working_surfaced
 test_actionable_signal_surfaced
 test_terminal_stale_surfaced
 test_terminal_done_with_armed_merge_poll_is_absorbed
+test_merge_monitored_stale_resurfaces_on_bounded_cadence
+test_invalid_merge_poll_artifacts_still_surface
 test_stale_terminal_status_overridden_by_active_run
 test_nonterminal_stale_provably_working_absorbed_then_escalated
 test_wedge_escalation_marks_demand_deep_inspection_after_threshold

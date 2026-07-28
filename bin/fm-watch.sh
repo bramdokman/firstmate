@@ -23,8 +23,9 @@
 #                          re-surface cadence, never as a wedge. Only when neither
 #                          absorb class applies does a lane-level terminal done
 #                          with an authenticated armed merge poll absorb as
-#                          monitored outside the pane. Otherwise the log's last
-#                          line decides:
+#                          monitored outside the pane - on that same long
+#                          re-surface cadence, never permanently. Otherwise the
+#                          log's last line decides:
 #                          terminal (captain-relevant) or non-terminal (no verb),
 #                          both surfaced at once. A provably-working stale past the
 #                          wedge threshold also surfaces, with an "escalation N"
@@ -135,8 +136,10 @@ BUSY_REGEX=${FM_BUSY_REGEX:-'esc (to )?interrupt|Working\.\.\.|Ctrl\+c:cancel'}
 # pane whose crew is not provably working, a provably-working stale past the
 # threshold, or anything unknown) is written to the durable queue and exits.
 # A lane-level terminal done with an authenticated armed merge poll is already
-# monitored through that poll, so its intentionally idle pane is absorbed.
-# The same classifier
+# monitored through that poll, so its intentionally idle pane is absorbed onto the
+# bounded PAUSE_RESURFACE_SECS recheck - the poll speaks only on a successful
+# merge, so that window is what keeps a PR closed unmerged or stuck in a merge
+# queue from rotting invisibly. The same classifier
 # (fm-classify-lib.sh) backs the away-mode daemon; while state/.afk exists the
 # daemon owns triage, so this watcher reverts to one-shot (enqueue + exit on every
 # wake) and never double-triages - and never runs the costly provably-working read.
@@ -322,35 +325,61 @@ busy_turn_over_age() {  # <task>
   [ "$(age_of "$f")" -ge "$BUSY_TURN_MAX_SECS" ]
 }
 
-# Absorb a stale pane under a declared external-wait pause (paused:) or a
-# dead-agent captain-held transfer, and re-surface it once every
-# PAUSE_RESURFACE_SECS for a recheck so it cannot rot invisibly. Called on any
-# stale poll once pause_state_class permits the bounded cadence, so it must be
-# cheap: it NEVER re-reads crew state. The re-surface age is anchored on the
+# Absorb a stale pane that is idle ON PURPOSE - not a wedge - and re-surface it
+# once every PAUSE_RESURFACE_SECS for a recheck so the hold cannot rot invisibly.
+# This is the ONE bounded-recheck core behind every such absorb (a declared
+# external-wait pause, a dead-agent captain-held transfer, and a terminal lane
+# whose merge is monitored by an armed poll) so no absorb path can quietly grow
+# an unbounded, never-rechecked suppression. Called on any stale poll, so it must
+# be cheap: it NEVER re-reads crew state. The re-surface age is anchored on the
 # status file mtime, not a per-hash marker, so a churny idle pane (a ticking
 # clock, a token counter) cannot keep resetting the cadence the way a hash-tied
-# timer would. A .paused-resurfaced-<key> throttle marker records the last
-# re-surface epoch so, once past the window, it fires once per window rather than
-# every poll. Advances the stale suppressor to <hash> and flags the key paused.
-handle_paused_stale() {  # <window> <task> <hash>
-  local win=$1 task=$2 h=$3 key statusf mtime age rf rf_age reason
+# timer would. <resurface-file> records the last re-surface epoch so, once past
+# the window, it fires once per window rather than every poll. Advances the stale
+# suppressor to <hash> and drops any pending wedge timer for it.
+absorb_with_bounded_recheck() {  # <window> <task> <hash> <resurface-file> <reason-head> <reason-tail> <triage-label>
+  local win=$1 task=$2 h=$3 rf=$4 head=$5 tail=$6 label=$7 key statusf mtime age rf_age reason
   key=$(printf '%s' "$win" | tr ':/.' '___')
   printf '%s' "$h" > "$STATE/.stale-$key"
-  : > "$STATE/.paused-$key"
   rm -f "$STATE/.stale-since-$key" "$STATE/.wedge-escalations-$key"
   statusf="$STATE/$task.status"
   mtime=$(stat_mtime "$statusf")
   case "$mtime" in ''|*[!0-9]*) mtime=$(date +%s) ;; esac
   age=$(( $(date +%s) - mtime ))
-  rf="$STATE/.paused-resurfaced-$key"
   rf_age=$(age_of "$rf")   # 999999 when no prior re-surface
   if [ "$age" -ge "$PAUSE_RESURFACE_SECS" ] && [ "$rf_age" -ge "$PAUSE_RESURFACE_SECS" ]; then
-    reason="stale: $win (paused ${age}s, awaiting external - declared pause, rechecked on a long cadence not a wedge; confirm the wait still holds)"
+    reason="stale: $win ($head ${age}s$tail)"
     fm_wake_append stale "$win" "$reason" || exit 1
     date +%s > "$rf"
     wake "$reason"
   fi
-  triage_log "absorbed stale (paused, awaiting external, age ${age}s): $win"
+  triage_log "absorbed stale ($label, age ${age}s): $win"
+}
+
+# Declared external-wait pause / captain-held transfer, on the bounded cadence.
+# Flags the key paused so the reconciliation paths above can see this absorb.
+handle_paused_stale() {  # <window> <task> <hash>
+  local win=$1 task=$2 h=$3 key
+  key=$(printf '%s' "$win" | tr ':/.' '___')
+  : > "$STATE/.paused-$key"
+  absorb_with_bounded_recheck "$win" "$task" "$h" "$STATE/.paused-resurfaced-$key" \
+    'paused' \
+    ', awaiting external - declared pause, rechecked on a long cadence not a wedge; confirm the wait still holds' \
+    'paused, awaiting external'
+}
+
+# Terminal lane whose exact recorded PR has an authenticated armed merge poll:
+# the poll is the active monitor, so the intentionally idle pane is absorbed - on
+# the SAME bounded cadence, because the poll only ever speaks on a successful
+# merge. A PR closed unmerged, ejected from the merge queue, or wedged there is
+# silent forever, so the window recheck is the only thing that keeps it visible.
+handle_merge_monitored_stale() {  # <window> <task> <hash>
+  local win=$1 task=$2 h=$3 key
+  key=$(printf '%s' "$win" | tr ':/.' '___')
+  absorb_with_bounded_recheck "$win" "$task" "$h" "$STATE/.merge-resurfaced-$key" \
+    'terminal done' \
+    ', merge poll armed - rechecked on a long cadence not a wedge; confirm the PR is still on its way to merging' \
+    'terminal done, merge poll armed'
 }
 
 clear_pause_state() {  # <window>
@@ -358,7 +387,8 @@ clear_pause_state() {  # <window>
   key=${win//:/_}
   key=${key//\//_}
   key=${key//./_}
-  rm -f "$STATE/.paused-$key" "$STATE/.paused-rechecked-$key" "$STATE/.paused-resurfaced-$key"
+  rm -f "$STATE/.paused-$key" "$STATE/.paused-rechecked-$key" "$STATE/.paused-resurfaced-$key" \
+    "$STATE/.merge-resurfaced-$key"
 }
 
 clear_pause_tracking() {  # <window>
@@ -891,6 +921,7 @@ EOF
     ssf="$STATE/.stale-since-$key"
     ewf="$STATE/.wedge-escalations-$key"
     pf="$STATE/.paused-$key"   # flag: this key's stale is using the bounded pause cadence
+    mrf="$STATE/.merge-resurfaced-$key"   # throttle: last merge-monitored recheck
     prev=$(cat "$hf" 2>/dev/null || true)
     # Busy match: a backend's native semantic state when available (herdr), else
     # the last 6 non-blank lines only (the TUI footer area, where every verified
@@ -916,13 +947,12 @@ EOF
             printf '%s' "$h" > "$sf"
             wake "stale: $w"
           fi
-        elif stale_is_merge_monitored "$w" "$STATE" "$SCRIPT_DIR/fm-pr-poll.sh"; then
+        elif stale_is_merge_monitored "$task" "$STATE" "$SCRIPT_DIR/fm-pr-poll.sh" "$last"; then
           # A terminal lane with an authenticated armed merge poll is monitored
-          # through that poll, not through its intentionally idle pane.
-          printf '%s' "$h" > "$sf"
-          rm -f "$ssf" "$ewf"
-          clear_pause_state "$w"
-          triage_log "absorbed stale (terminal done, merge poll armed): $w"
+          # through that poll, not through its intentionally idle pane - but the
+          # poll speaks only on merge, so this absorb stays on the same bounded
+          # PAUSE_RESURFACE_SECS recheck rather than suppressing the lane forever.
+          handle_merge_monitored_stale "$w" "$task" "$h"
         elif stale_is_terminal "$w" "$STATE"; then
           # The log's last line is captain-relevant - but that alone is not
           # proof the crew is actually done: a crew's own status log gets no
@@ -1014,7 +1044,7 @@ EOF
         if [ "$busy_now" -eq 0 ] && busy_turn_over_age "$task"; then
           wedge_timer_check "$w" "$ssf" "busy (no completed turn)" "$ewf"
         else
-          rm -f "$ssf" "$ewf"
+          rm -f "$ssf" "$ewf" "$mrf"
         fi
         if [ -e "$pf" ] && { [ "$n" -ge 2 ] || ! status_is_paused_or_captain_held "$(last_status_line "$STATE/$(window_to_task "$w" "$STATE").status")"; }; then
           clear_pause_tracking "$w"
@@ -1026,7 +1056,7 @@ EOF
       if [ "$busy_now" -eq 0 ] && busy_turn_over_age "$task"; then
         wedge_timer_check "$w" "$ssf" "busy (no completed turn)" "$ewf"
       else
-        rm -f "$ssf" "$ewf"
+        rm -f "$ssf" "$ewf" "$mrf"
       fi
       task=$(window_to_task "$w" "$STATE")
       if ! afk_present && status_is_paused_or_captain_held "$(last_status_line "$STATE/$task.status")" && [ "$busy_now" -ne 0 ]; then
