@@ -65,8 +65,10 @@
 # enough for a heartbeat, and lets a historical selector-only deploy expire
 # instead of pinning the exit code to 1 forever on a rarely deploying
 # repository.
-# A selector-only deploy is one completed job matching
-# FM_RECONCILE_DEPLOY_SELECTOR_PATTERN and no other completed job.
+# A selector-only deploy is one job that actually ran, matching
+# FM_RECONCILE_DEPLOY_SELECTOR_PATTERN, with no other job that ran.
+# A skipped job did not run, so it neither counts as work the deploy performed
+# nor rescues a run whose only real job was the selector.
 #
 # Failure-like check conclusions on the main branch are divergences.
 # The cancelled and stale conclusions are routine rather than red - a superseded
