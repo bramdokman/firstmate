@@ -17,6 +17,10 @@
 #
 # With no arguments, GitHub repositories are discovered from data/projects.md
 # and task PR records.
+# The registry records project names rather than GitHub slugs, so a registered
+# non-local project's slug is read from the origin remote of its clone under
+# projects/<name>; a project with no readable GitHub origin there is reported
+# could-not-verify rather than silently dropped from the observation scope.
 # Repeat --repo owner/name to restrict the observation scope.
 #
 # A task's recorded PR claim is read through the same hardened metadata parser
@@ -68,6 +72,12 @@
 # The cancelled and stale conclusions are routine rather than red - a superseded
 # concurrency group or a re-run leaves them behind - so they are reported
 # could-not-verify instead of as a broken branch or as silence.
+# The branch observed is each repository's own current default branch, read once
+# per run from the repository record, because one fleet-global branch name would
+# make every repository that does not use it permanently unverifiable.
+# FM_RECONCILE_MAIN_BRANCH is an explicit override for every repository in scope
+# rather than the only source, and a default branch GitHub does not report is
+# could-not-verify.
 #
 # This command deliberately does not query merge-queue state, infer current
 # worker state from historical status events, or guess that an old open PR was
@@ -75,9 +85,21 @@
 # Those observations either consume scarce GraphQL quota or lack a sufficiently
 # reliable claim-to-observation mapping for a scheduled heartbeat check.
 #
+# Every observation is read through gh-axi's documented api_response envelope
+# and its base64 body only.
+# Any other output shape is could-not-verify, so a wrapper that changes its
+# rendering degrades honestly instead of being parsed as comfortable nonsense.
+#
+# The job-name patterns below are deliberately generic because this repository
+# is a shared template.
+# A fleet's own CI job vocabulary belongs in the captain-private environment
+# that invokes this command, exported as the matching FM_RECONCILE_* override,
+# rather than in a tracked default every other fleet would inherit.
+#
 # Environment:
-#   FM_HOME, FM_STATE_OVERRIDE, FM_DATA_OVERRIDE
-#   FM_RECONCILE_MAIN_BRANCH               default: main
+#   FM_HOME, FM_STATE_OVERRIDE, FM_DATA_OVERRIDE, FM_PROJECTS_OVERRIDE
+#   FM_RECONCILE_MAIN_BRANCH               default: each repository's own
+#                                          current GitHub default branch
 #   FM_RECONCILE_TEST_JOB_PATTERN          default: common real-test job names
 #   FM_RECONCILE_META_JOB_PATTERN          default: selector/summary/gate names
 #   FM_RECONCILE_APPLICABILITY_JOB_PATTERN default: change/path detector names
@@ -93,6 +115,7 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
 BACKLOG="$DATA/backlog.md"
 PROJECT_REGISTRY="$DATA/projects.md"
 
@@ -100,9 +123,9 @@ PROJECT_REGISTRY="$DATA/projects.md"
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 
-MAIN_BRANCH=${FM_RECONCILE_MAIN_BRANCH:-main}
+MAIN_BRANCH_OVERRIDE=${FM_RECONCILE_MAIN_BRANCH:-}
 TEST_JOB_PATTERN=${FM_RECONCILE_TEST_JOB_PATTERN:-'integration|db gates|packages|browser|(^|[^[:alnum:]])tests?([^[:alnum:]]|$)|e2e|typecheck.*build|jest|vitest|playwright|cypress|parity|smoke'}
-META_JOB_PATTERN=${FM_RECONCILE_META_JOB_PATTERN:-'selector|summary|aggregate|required check|merge gate|build, test, tenant-isolation gate'}
+META_JOB_PATTERN=${FM_RECONCILE_META_JOB_PATTERN:-'selector|summary|aggregate|required check|merge gate'}
 APPLICABILITY_JOB_PATTERN=${FM_RECONCILE_APPLICABILITY_JOB_PATTERN:-'(^|[^[:alnum:]])(changes?|filters?|detect|paths?.filters?|changed.files)([^[:alnum:]]|$)|detect.*(change|surface|app)|change.*detect|path.*filter|select.*(test|suite|surface|applicab)'}
 NOT_APPLICABLE_PATTERN=${FM_RECONCILE_NOT_APPLICABLE_PATTERN:-'not applicable|docs.only|no tests required|tests skipped by path filter'}
 DEPLOY_WORKFLOW_PATTERN=${FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN:-'deploy|release'}
@@ -114,6 +137,7 @@ DIVERGENCES=0
 UNVERIFIED=0
 EXPLICIT_REPOS=0
 API_RESULT=
+MAIN_BRANCH_RESULT=
 REPOS=()
 TASK_IDS=()
 TASK_REPOS=()
@@ -160,6 +184,19 @@ nonnegative_integer() {
   esac
 }
 
+# A branch name safe to splice into a REST path. Slashes are legal in a branch
+# and in the commits/<ref> route, so only the characters git itself refuses and
+# the ones that would change which resource the path addresses are rejected.
+branch_valid() {
+  local branch=${1-}
+  [ -n "$branch" ] || return 1
+  case "$branch" in
+    -*|/*|*/) return 1 ;;
+    *[[:space:]]*|*'?'*|*'#'*|*'&'*|*'%'*|*'~'*|*'^'*|*':'*|*'['*|*'\'*|*'*'*) return 1 ;;
+    *'..'*|*'//'*) return 1 ;;
+  esac
+}
+
 repo_present() {
   local wanted=$1 repo
   for repo in "${REPOS[@]+"${REPOS[@]}"}"; do
@@ -177,15 +214,31 @@ repo_selected() {
   [ "$EXPLICIT_REPOS" -eq 0 ] || repo_present "$1"
 }
 
-registry_repo_for_name() {
-  local name=$1 line candidate
+registry_names() {
   [ -f "$PROJECT_REGISTRY" ] || return 1
-  line=$(awk -v n="$name" '$1 == "-" && $2 == n { print; exit }' "$PROJECT_REGISTRY")
-  [ -n "$line" ] || return 1
-  line=${line% \(added *}
-  candidate=${line##*, }
-  repo_valid "$candidate" || return 1
-  printf '%s' "$candidate"
+  awk '$1 == "-" && $2 != "" && $0 !~ /\[local-only/ { print $2 }' "$PROJECT_REGISTRY"
+}
+
+registry_lists_name() {
+  local name=$1
+  [ -f "$PROJECT_REGISTRY" ] || return 1
+  awk -v n="$name" '$1 == "-" && $2 == n { found = 1 } END { exit(found ? 0 : 1) }' \
+    "$PROJECT_REGISTRY"
+}
+
+repo_from_clone() {
+  local dir=$1 origin
+  [ -d "$dir" ] || return 1
+  origin=$(git -C "$dir" remote get-url origin 2>/dev/null) || return 1
+  repo_from_origin "$origin"
+}
+
+# The registry records project names, not GitHub slugs, so a registered
+# project's repository is whatever its own clone calls origin.
+registry_repo_for_name() {
+  local name=$1
+  registry_lists_name "$name" || return 1
+  repo_from_clone "$PROJECTS/$name"
 }
 
 repo_from_origin() {
@@ -208,10 +261,8 @@ repo_from_origin() {
 }
 
 repo_for_project() {
-  local project=$1 origin name
-  if [ -d "$project" ] && origin=$(git -C "$project" remote get-url origin 2>/dev/null); then
-    repo_from_origin "$origin" && return 0
-  fi
+  local project=$1 name
+  repo_from_clone "$project" && return 0
   name=${project##*/}
   registry_repo_for_name "$name"
 }
@@ -285,29 +336,20 @@ pr_number_from_status() {
 }
 
 discover_registry_repos() {
-  local line candidate project
+  local name candidate
   if [ ! -f "$PROJECT_REGISTRY" ]; then
     could_not_verify "registered repositories" "$PROJECT_REGISTRY is absent"
     return 0
   fi
-  while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      "- "*) ;;
-      *) continue ;;
-    esac
-    project=$(printf '%s\n' "$line" | awk '{print $2}')
-    case "$line" in
-      *"[local-only"*) continue ;;
-    esac
-    line=${line% \(added *}
-    candidate=${line##*, }
-    if repo_valid "$candidate"; then
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    if candidate=$(repo_from_clone "$PROJECTS/$name"); then
       add_repo "$candidate"
     else
-      could_not_verify "project $project repository" \
-        "its non-local registry row does not end with a GitHub owner/name"
+      could_not_verify "project $name repository" \
+        "its clone at $PROJECTS/$name reports no GitHub origin remote"
     fi
-  done < "$PROJECT_REGISTRY"
+  done < <(registry_names)
 }
 
 meta_claims_pr() {
@@ -415,11 +457,13 @@ api_get() {
     could_not_verify "$subject" "GitHub REST request failed"
     return 1
   fi
-  # Test doubles may return raw JSON.
-  if printf '%s' "$raw" | jq -e . >/dev/null 2>&1; then
-    API_RESULT=$raw
-    return 0
-  fi
+  case "$raw" in
+    'api_response:'*) ;;
+    *)
+      could_not_verify "$subject" "gh-axi did not return its documented api_response envelope"
+      return 1
+      ;;
+  esac
   case "$raw" in
     *"truncated: true"*)
       could_not_verify "$subject" "gh-axi truncated the GitHub REST response"
@@ -427,7 +471,13 @@ api_get() {
       ;;
   esac
   encoded=$(printf '%s\n' "$raw" | sed -n 's/^[[:space:]]*body: //p' | head -1)
-  if [ -z "$encoded" ] || ! API_RESULT=$(printf '%s' "$encoded" | base64_decode 2>/dev/null); then
+  case "$encoded" in
+    ''|*[!A-Za-z0-9+/=]*)
+      could_not_verify "$subject" "gh-axi returned an unreadable REST response"
+      return 1
+      ;;
+  esac
+  if ! API_RESULT=$(printf '%s' "$encoded" | base64_decode 2>/dev/null); then
     could_not_verify "$subject" "gh-axi returned an unreadable REST response"
     return 1
   fi
@@ -580,10 +630,32 @@ check_task_pr() {
   fi
 }
 
+# Resolves the branch check_main observes into MAIN_BRANCH_RESULT rather than
+# returning it, so a failed resolution still counts toward the exit code instead
+# of being swallowed by a command substitution.
+resolve_main_branch() {
+  local repo=$1 branch
+  MAIN_BRANCH_RESULT=
+  if [ -n "$MAIN_BRANCH_OVERRIDE" ]; then
+    MAIN_BRANCH_RESULT=$MAIN_BRANCH_OVERRIDE
+    return 0
+  fi
+  api_get "$repo default branch" "/repos/$repo" '{default_branch}' || return 1
+  branch=$(api_jq -r '.default_branch // empty')
+  if ! branch_valid "$branch"; then
+    could_not_verify "$repo default branch" \
+      "GitHub REST did not report a usable default branch name"
+    return 1
+  fi
+  MAIN_BRANCH_RESULT=$branch
+}
+
 check_main() {
-  local repo=$1 failures names uncertain uncertain_names legacy_count legacy_failures sha
-  api_get "$repo $MAIN_BRANCH checks" \
-    "/repos/$repo/commits/$MAIN_BRANCH/check-runs?per_page=100" \
+  local repo=$1 branch failures names uncertain uncertain_names legacy_count legacy_failures sha
+  resolve_main_branch "$repo" || return 0
+  branch=$MAIN_BRANCH_RESULT
+  api_get "$repo $branch checks" \
+    "/repos/$repo/commits/$branch/check-runs?per_page=100" \
     '{
       total_count,
       returned:(.check_runs|length),
@@ -602,36 +674,36 @@ check_main() {
         | {name,conclusion}
       ]
     }' || return 0
-  api_counts_complete "$repo $MAIN_BRANCH checks" '.returned // -1' 'check runs'
+  api_counts_complete "$repo $branch checks" '.returned // -1' 'check runs'
   [ "$?" -ne 2 ] || return 0
   sha=$(api_jq -r '.sha // empty | .[0:8]')
   failures=$(api_jq '.failures | length')
   if [ "$failures" -gt 0 ]; then
     names=$(api_jq -r '[.failures[].name][0:5] | join(", ")')
-    divergence "$repo $MAIN_BRANCH${sha:+ ($sha)} has $failures failing checks${names:+: $names}"
+    divergence "$repo $branch${sha:+ ($sha)} has $failures failing checks${names:+: $names}"
   fi
   uncertain=$(api_jq '.uncertain | length')
   if [ "$uncertain" -gt 0 ]; then
     uncertain_names=$(api_jq -r '[.uncertain[].name][0:5] | join(", ")')
-    could_not_verify "$repo $MAIN_BRANCH${sha:+ ($sha)} checks" \
+    could_not_verify "$repo $branch${sha:+ ($sha)} checks" \
       "$uncertain checks were cancelled or went stale, which is routine but leaves them unproven${uncertain_names:+: $uncertain_names}"
   fi
 
-  api_get "$repo $MAIN_BRANCH commit statuses" \
-    "/repos/$repo/commits/$MAIN_BRANCH/status?per_page=100" \
+  api_get "$repo $branch commit statuses" \
+    "/repos/$repo/commits/$branch/status?per_page=100" \
     '{statuses:[.statuses[]|{context,state}]}' || return 0
   legacy_count=$(api_jq -r '.statuses | if type == "array" then length else -1 end')
   if ! nonnegative_integer "$legacy_count"; then
-    could_not_verify "$repo $MAIN_BRANCH commit statuses" "GitHub REST omitted status records"
+    could_not_verify "$repo $branch commit statuses" "GitHub REST omitted status records"
     return 0
   fi
   if [ "$legacy_count" -ge 100 ]; then
-    could_not_verify "$repo $MAIN_BRANCH commit statuses" "at least 100 status records exist"
+    could_not_verify "$repo $branch commit statuses" "at least 100 status records exist"
   fi
   legacy_failures=$(api_jq \
     '[.statuses[] | select(.state == "failure" or .state == "error")] | length')
   if [ "$legacy_failures" -gt 0 ]; then
-    divergence "$repo $MAIN_BRANCH has $legacy_failures failing legacy commit statuses"
+    divergence "$repo $branch has $legacy_failures failing legacy commit statuses"
   fi
 }
 
@@ -748,6 +820,10 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+if [ -n "$MAIN_BRANCH_OVERRIDE" ] && ! branch_valid "$MAIN_BRANCH_OVERRIDE"; then
+  printf 'could not verify configuration: FM_RECONCILE_MAIN_BRANCH is not a usable branch name\n'
+  exit 2
+fi
 case "$DEPLOY_RUNS" in
   ''|*[!0-9]*) printf 'could not verify configuration: FM_RECONCILE_DEPLOY_RUNS must be 1..20\n'; exit 2 ;;
 esac
