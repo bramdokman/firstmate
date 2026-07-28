@@ -396,6 +396,43 @@ stale_is_terminal() {  # <window> <state>
   [ -n "$last" ] && status_is_captain_relevant "$last"
 }
 
+# 0 if a task's latest substantive status is terminal done. A trailing paused:
+# declaration preserves that completion state because firstmate may have appended
+# it after the worker's final report to describe the external merge wait.
+# Any other later status invalidates the terminal-done state.
+status_is_terminal_done_wait() {  # <status-file>
+  local f=$1 line verb key done_wait=0 stripped
+  [ -f "$f" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    stripped=${line//[[:space:]]/}
+    [ -n "$stripped" ] || continue
+    verb=$(status_line_verb "$line")
+    case "$verb" in
+      done)
+        key=$(_fm_decision_key "$line") || key=
+        [ "$key" = default ] && done_wait=1 || done_wait=0
+        ;;
+      "${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}")
+        key=$(_fm_decision_key "$line") || key=
+        [ "$key" = default ] || done_wait=0
+        ;;
+      *) done_wait=0 ;;
+    esac
+  done < "$f"
+  [ "$done_wait" -eq 1 ]
+}
+
+# 0 if a stale lane has both terminal completion evidence and the exact,
+# authenticated merge-poll artifact set recorded for that task and PR.
+# Consumers source fm-pr-lib.sh and pass their canonical poll template.
+stale_is_merge_monitored() {  # <window> <state> <poll-template>
+  local win=$1 state=$2 template=$3 task
+  command -v fm_pr_poll_artifacts_valid >/dev/null 2>&1 || return 1
+  task=$(window_to_task "$win" "$state")
+  status_is_terminal_done_wait "$state/$task.status" || return 1
+  fm_pr_poll_artifacts_valid "$state" "$task" "$template"
+}
+
 # Print "<file>\t<task>\t<last-line>" for every state/*.status whose last line is
 # captain-relevant. This is the cheap fleet-scan both supervisors run as a
 # catch-all backstop for a captain-relevant status the per-wake path might miss.

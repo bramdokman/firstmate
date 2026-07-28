@@ -104,6 +104,19 @@ prime_turnend_seen() {  # <file>
 
 reap() { kill "$1" 2>/dev/null || true; wait "$1" 2>/dev/null || true; }
 
+arm_merge_poll() {  # <state> <task-id> <pr-url>
+  local state=$1 id=$2 url=$3
+  (
+    # shellcheck source=/dev/null
+    . "$ROOT/bin/fm-pr-lib.sh"
+    fm_pr_url_parse "$url" || exit 1
+    # shellcheck disable=SC2154 # Populated by fm_pr_url_parse from the dynamic test source.
+    fm_pr_poll_prepare "$state" "$id" "$FM_PR_PROVIDER" "$FM_PR_URL" "$FM_PR_HOST" \
+      "$FM_PR_PATH" "$FM_PR_NUMBER" "$ROOT/bin/fm-pr-poll.sh" || exit 1
+    fm_pr_poll_publish_prepared
+  )
+}
+
 # --- pure classifier predicates (fm-classify-lib.sh) ------------------------
 
 test_signal_reason_is_actionable_classifier() {
@@ -214,6 +227,18 @@ EOF
   printf 'working: legacy start\ndone: legacy completion\n' > "$state/legacy-activity.status"
   [ -z "$(status_open_activities "$state/legacy-activity.status")" ] \
     || fail "a legacy terminal event did not supersede the default working phase"
+  printf 'done: PR ready and checks green\npaused: awaiting merge\n' > "$state/terminal-wait.status"
+  status_is_terminal_done_wait "$state/terminal-wait.status" \
+    || fail "a trailing pause did not preserve lane-level terminal completion"
+  printf 'done: implementation complete\nworking: validation resumed\n' > "$state/resumed-after-done.status"
+  status_is_terminal_done_wait "$state/resumed-after-done.status" \
+    && fail "later working status did not invalidate terminal completion"
+  printf 'done [key=phase6]: phase complete\n' > "$state/keyed-done.status"
+  status_is_terminal_done_wait "$state/keyed-done.status" \
+    && fail "a keyed sub-activity done was treated as lane-level terminal completion"
+  printf 'done: lane complete\npaused [key=legal]: unrelated activity waiting\n' > "$state/keyed-pause.status"
+  status_is_terminal_done_wait "$state/keyed-pause.status" \
+    && fail "a keyed sub-activity pause preserved lane-level terminal completion"
   pass "classifier primitives: keyed decisions and activity phases, captain relevance, window-to-task, and overrides"
 }
 
@@ -447,6 +472,62 @@ test_terminal_stale_surfaced() {
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after the terminal stale failed"
   grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null || fail "terminal stale was not queued"
   pass "a stale pane sitting on a terminal status is surfaced (queue + exit)"
+}
+
+# --- terminal done + authenticated merge poll: monitored outside the pane ----
+# Once a lane has reported terminal completion and fm-pr-check has armed its
+# validated merge poll, the pane is intentionally idle. The poll is the active
+# monitor, so an expired pane wedge timer must neither wake nor enqueue.
+test_terminal_done_with_armed_merge_poll_is_absorbed() {
+  local dir state fakebin out capture_file window key pane_hash sig pid url
+  dir=$(make_case terminal-merge-monitored); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; capture_file="$dir/pane.txt"
+  window="test:fm-queued"
+  url="https://github.com/example/repo/pull/7"
+  printf 'finished, awaiting merge queue\n' > "$capture_file"
+  fm_write_meta "$state/queued.meta" \
+    "window=$window" "kind=ship" "backend=tmux" "pr=$url"
+  printf 'done: PR %s checks green\n' "$url" > "$state/queued.status"
+  arm_merge_poll "$state" queued "$url" || fail "could not arrange a valid armed merge poll"
+  sig=$(seen_sig "$state/queued.status"); printf '%s' "$sig" > "$state/.seen-queued_status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  pane_hash=$(hash_text "finished, awaiting merge queue")
+  printf '%s' "$pane_hash" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  printf '%s\n' "$(( $(date +%s) - 500 ))" > "$state/.stale-since-$key"
+  export FM_FAKE_CREW_STATE='state: done · source: run-step · checks green'
+
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_STALE_ESCALATE_SECS=240 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  pid=$!
+  if ! wait_live "$pid" 30; then
+    reap "$pid"; fail "watcher surfaced a terminal lane whose merge is monitored: $(cat "$out")"
+  fi
+  [ ! -s "$out" ] || fail "merge-monitored terminal lane printed a stale wake"
+  [ ! -s "$state/.wake-queue" ] || fail "merge-monitored terminal lane enqueued a stale wake"
+  [ ! -e "$state/.stale-since-$key" ] || fail "merge-monitored terminal lane retained its wedge timer"
+  reap "$pid"
+
+  # The poll alone is insufficient. If the lane reports working again, the same
+  # idle pane must return to ordinary stale detection even while the poll remains.
+  printf 'working: follow-up correction still in progress\n' > "$state/queued.status"
+  sig=$(seen_sig "$state/queued.status"); printf '%s' "$sig" > "$state/.seen-queued_status"
+  printf 'stopped during follow-up correction\n' > "$capture_file"
+  pane_hash=$(hash_text "stopped during follow-up correction")
+  printf '%s' "$pane_hash" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  : > "$out"
+  export FM_FAKE_CREW_STATE='state: unknown · source: none · no current-state source available'
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_STALE_ESCALATE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  pid=$!
+  wait_for_exit "$pid" 40 || fail "watcher suppressed a mid-task stop merely because a merge poll remained armed"
+  grep -Fx "stale: $window" "$out" >/dev/null \
+    || fail "mid-task stop with an armed poll did not return to ordinary stale detection"
+  unset FM_FAKE_CREW_STATE
+  pass "only terminal done with an authenticated armed merge poll suppresses pane wedge escalation"
 }
 
 # --- stale pane, STALE terminal status overridden by an active run: absorbed ---
@@ -1553,6 +1634,7 @@ test_turn_ended_not_working_surfaced
 test_working_note_not_working_surfaced
 test_actionable_signal_surfaced
 test_terminal_stale_surfaced
+test_terminal_done_with_armed_merge_poll_is_absorbed
 test_stale_terminal_status_overridden_by_active_run
 test_nonterminal_stale_provably_working_absorbed_then_escalated
 test_wedge_escalation_marks_demand_deep_inspection_after_threshold

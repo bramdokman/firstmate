@@ -21,7 +21,10 @@
 #                          firstmate hands it to a no-mistakes validation. A declared
 #                          external-wait pause is absorbed instead with its own long
 #                          re-surface cadence, never as a wedge. Only when neither
-#                          absorb class applies does the log's last line decide:
+#                          absorb class applies does a lane-level terminal done
+#                          with an authenticated armed merge poll absorb as
+#                          monitored outside the pane. Otherwise the log's last
+#                          line decides:
 #                          terminal (captain-relevant) or non-terminal (no verb),
 #                          both surfaced at once. A provably-working stale past the
 #                          wedge threshold also surfaces, with an "escalation N"
@@ -130,8 +133,10 @@ BUSY_REGEX=${FM_BUSY_REGEX:-'esc (to )?interrupt|Working\.\.\.|Ctrl\+c:cancel'}
 # (no done: status) is never swallowed. An ACTIONABLE wake (a captain-relevant
 # signal, a no-verb signal whose crew is not provably working, any check, a stale
 # pane whose crew is not provably working, a provably-working stale past the
-# threshold, or anything unknown) is written to the durable queue and exits, which
-# is what wakes the LLM through the background-task completion. The same classifier
+# threshold, or anything unknown) is written to the durable queue and exits.
+# A lane-level terminal done with an authenticated armed merge poll is already
+# monitored through that poll, so its intentionally idle pane is absorbed.
+# The same classifier
 # (fm-classify-lib.sh) backs the away-mode daemon; while state/.afk exists the
 # daemon owns triage, so this watcher reverts to one-shot (enqueue + exit on every
 # wake) and never double-triages - and never runs the costly provably-working read.
@@ -911,6 +916,13 @@ EOF
             printf '%s' "$h" > "$sf"
             wake "stale: $w"
           fi
+        elif stale_is_merge_monitored "$w" "$STATE" "$SCRIPT_DIR/fm-pr-poll.sh"; then
+          # A terminal lane with an authenticated armed merge poll is monitored
+          # through that poll, not through its intentionally idle pane.
+          printf '%s' "$h" > "$sf"
+          rm -f "$ssf" "$ewf"
+          clear_pause_state "$w"
+          triage_log "absorbed stale (terminal done, merge poll armed): $w"
         elif stale_is_terminal "$w" "$STATE"; then
           # The log's last line is captain-relevant - but that alone is not
           # proof the crew is actually done: a crew's own status log gets no
