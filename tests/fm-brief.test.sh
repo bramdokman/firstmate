@@ -272,6 +272,12 @@ test_ship_project_memory_wording() {
   FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj >/dev/null 2>&1
   brief="$home/data/$id/brief.md"
   assert_present "$brief" "brief was not scaffolded"
+  assert_grep "Task-specific project-memory constraints take precedence over this generic section." "$brief" \
+    "project-memory contract did not subordinate the generic guidance to task-specific constraints"
+  assert_grep "If the task forbids, replaces, or narrows project-memory work, follow that constraint and do not run the helper unless the task explicitly allows it." "$brief" \
+    "project-memory contract did not make a task-specific prohibition decisive"
+  assert_no_grep "If \`AGENTS.md\` or \`CLAUDE.md\` already exists, or if this task produced durable project-intrinsic knowledge, run" "$brief" \
+    "project-memory contract retained the unconditional helper instruction"
   assert_grep "Record only project knowledge useful to almost every future session." "$brief" \
     "project-memory contract lost the durable-knowledge bar"
   assert_grep "prefer a pointer to the authoritative file, command, or doc over copying the detail" "$brief" \
@@ -279,6 +285,57 @@ test_ship_project_memory_wording() {
   assert_grep "lacks \`## Maintaining this file\`, add that short self-governance section" "$brief" \
     "project-memory contract lost the self-governance add-in-same-pass rule"
   pass "fm-brief.sh: ship project-memory wording carries the AGENTS.md authoring bar"
+}
+
+test_issue_linked_ship_requires_pr_closing_keyword() {
+  local home id brief
+  home="$TMP_ROOT/issue-closing-home"
+  write_registry "$home"
+
+  for id_proj in "fix-issue-841:no-registry-proj" "fix-issue-338:direct-proj"; do
+    id=${id_proj%%:*}
+    proj=${id_proj##*:}
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" "$proj" >/dev/null 2>&1
+    brief="$home/data/$id/brief.md"
+    assert_grep "If the task names a GitHub issue, include a closing keyword such as \`Closes #123\` in the PR body." "$brief" \
+      "$id: PR-producing brief did not require an issue-closing keyword"
+    assert_grep "GitHub may ignore the keyword, and firstmate verifies issue state after merge regardless." "$brief" \
+      "$id: closing-keyword guidance implied that the keyword proves closure"
+  done
+
+  id="fix-issue-local"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" local-proj >/dev/null 2>&1
+  brief="$home/data/$id/brief.md"
+  assert_no_grep "include a closing keyword" "$brief" \
+    "local-only brief required a PR-body keyword even though it forbids PRs"
+  pass "fm-brief.sh: issue-linked PR briefs require a keyword without treating it as closure proof"
+}
+
+test_github_rest_guidance_targets_crewmate_briefs() {
+  local home kind id brief
+  home="$TMP_ROOT/github-rest-home"
+  mkdir -p "$home/data"
+
+  for kind in ship scout; do
+    id="github-rest-$kind"
+    if [ "$kind" = scout ]; then
+      FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" alpha --scout >/dev/null 2>&1
+    else
+      FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" alpha >/dev/null 2>&1
+    fi
+    brief="$home/data/$id/brief.md"
+    assert_grep "prefer \`gh api repos/OWNER/REPO/...\` REST paths over \`gh pr\`/\`gh issue\` subcommands" "$brief" \
+      "$kind brief did not prefer repository REST paths over GraphQL-heavy subcommands"
+    assert_grep "Never poll merge-queue state; firstmate already tracks it." "$brief" \
+      "$kind brief did not prohibit redundant merge-queue polling"
+  done
+
+  FM_HOME="$home" FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
+    "$ROOT/bin/fm-brief.sh" github-rest-secondmate --secondmate alpha >/dev/null 2>&1
+  brief="$home/data/github-rest-secondmate/brief.md"
+  assert_no_grep "Never poll merge-queue state" "$brief" \
+    "secondmate charter inherited a worker-only queue-tracking instruction"
+  pass "fm-brief.sh: ship and scout briefs prefer REST without burdening secondmate charters"
 }
 
 test_herdr_lab_contract_is_explicit_and_complete() {
@@ -534,6 +591,8 @@ test_ship_modes_generate_clean_briefs
 test_faster_paths_use_configured_authority_without_stacked_review
 test_no_mistakes_dod_wording
 test_ship_project_memory_wording
+test_issue_linked_ship_requires_pr_closing_keyword
+test_github_rest_guidance_targets_crewmate_briefs
 test_herdr_lab_contract_is_explicit_and_complete
 test_herdr_lab_contract_quotes_foreign_firstmate_path
 test_herdr_lab_omission_is_loud_for_ship_and_scout

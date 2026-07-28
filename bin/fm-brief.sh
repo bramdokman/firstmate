@@ -34,6 +34,10 @@
 #   local-only   implement on branch, stop and report "ready in branch" (no push/PR);
 #                captain approves, firstmate merges to local main
 # Ship briefs begin with a worktree-isolation assertion before the branch step.
+# PR-producing ship briefs require an issue-closing keyword when the task names
+# a GitHub issue, while warning that firstmate still verifies closure after merge.
+# Ship and scout briefs prefer GitHub REST reads and leave merge-queue polling
+# to firstmate.
 # Scout tasks ignore mode - their deliverable is a report, not a merge.
 # Every scaffold's status protocol distinguishes the configured
 # declared-external-wait verb (FM_CLASSIFY_PAUSED_VERB, default "paused") from
@@ -41,9 +45,11 @@
 # blocked when firstmate must act.
 # Ship tasks include a project-memory section so durable project-intrinsic
 # learnings can be committed to AGENTS.md through the project's delivery path;
-# it carries the AGENTS.md authoring bar (widely useful knowledge only, pointers
-# over copied detail) and has the crewmate add the fm-ensure-agents-md.sh
-# self-governance section when a touched project AGENTS.md lacks it.
+# task-specific constraints take precedence over its conditional helper step.
+# The section carries the AGENTS.md authoring bar (widely useful knowledge only,
+# pointers over copied detail) and has the crewmate add the
+# fm-ensure-agents-md.sh self-governance section when a touched project
+# AGENTS.md lacks it.
 # Refuses to overwrite an existing brief.
 set -eu
 
@@ -192,6 +198,13 @@ fi
 exit 0
 fi
 
+IFS= read -r -d '' GITHUB_READ_GUIDANCE <<'EOF' || true
+3. For GitHub reads, prefer `gh api repos/OWNER/REPO/...` REST paths over `gh pr`/`gh issue` subcommands.
+   Use gh-axi for other GitHub operations and chrome-devtools-axi for browser operations.
+   Never poll merge-queue state; firstmate already tracks it.
+EOF
+GITHUB_READ_GUIDANCE=${GITHUB_READ_GUIDANCE%$'\n'}
+
 REPO=${POS[1]}
 
 if [ "$HERDR_LAB" -eq 1 ]; then
@@ -244,7 +257,7 @@ The report is the only thing that survives, so anything worth keeping must be in
 # Rules
 1. Never push to any remote and never open a PR.
 2. Stay inside this worktree; the only files you may write outside it are the report and the status file below.
-3. Use gh-axi for GitHub operations and chrome-devtools-axi for browser operations.
+$GITHUB_READ_GUIDANCE
 4. Report status by appending one line:
    \`echo "{state}: {one short line}" >> $STATUS_FILE\`
    States: working, needs-decision, blocked, $PAUSED_VERB, done, failed.
@@ -330,6 +343,15 @@ EOF
     ;;
 esac
 
+PR_BODY_GUIDANCE=""
+if [ "$MODE" != local-only ]; then
+IFS= read -r -d '' PR_BODY_GUIDANCE <<'EOF' || true
+   If the task names a GitHub issue, include a closing keyword such as `Closes #123` in the PR body.
+   This is required good practice, not proof of closure: GitHub may ignore the keyword, and firstmate verifies issue state after merge regardless.
+EOF
+PR_BODY_GUIDANCE=${PR_BODY_GUIDANCE%$'\n'}
+fi
+
 # read -r -d '' preserves the heredoc's trailing newline that the removed
 # $(...) command substitution used to strip. Drop that one newline so generated
 # briefs stay byte-identical to the historical Bash 5 output.
@@ -355,7 +377,8 @@ If the top-level path is the primary checkout or not the worktree you were launc
 # Rules
 $RULE1
 2. Stay inside this worktree; modify nothing outside it.
-3. Use gh-axi for GitHub operations and chrome-devtools-axi for browser operations.
+$GITHUB_READ_GUIDANCE
+$PR_BODY_GUIDANCE
 4. Report status by appending one line:
    \`echo "{state}: {one short line}" >> $STATUS_FILE\`
    States: working, needs-decision, blocked, $PAUSED_VERB, done, failed.
@@ -378,7 +401,9 @@ $RULE1
    daemon error, append \`blocked: {the daemon error}\` and stop; only firstmate manages the daemon.
 
 # Project memory
-If \`AGENTS.md\` or \`CLAUDE.md\` already exists, or if this task produced durable project-intrinsic knowledge, run \`$FM_ROOT/bin/fm-ensure-agents-md.sh .\` in the worktree.
+Task-specific project-memory constraints take precedence over this generic section.
+If the task forbids, replaces, or narrows project-memory work, follow that constraint and do not run the helper unless the task explicitly allows it.
+Otherwise, if \`AGENTS.md\` or \`CLAUDE.md\` already exists, or if this task produced durable project-intrinsic knowledge, run \`$FM_ROOT/bin/fm-ensure-agents-md.sh .\` in the worktree.
 Record only project knowledge useful to almost every future session.
 For anything the codebase already shows, prefer a pointer to the authoritative file, command, or doc over copying the detail.
 If you touch a project \`AGENTS.md\` that lacks \`## Maintaining this file\`, add that short self-governance section from \`$FM_ROOT/bin/fm-ensure-agents-md.sh\` in the same pass.
