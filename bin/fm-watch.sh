@@ -387,8 +387,7 @@ clear_pause_state() {  # <window>
   key=${win//:/_}
   key=${key//\//_}
   key=${key//./_}
-  rm -f "$STATE/.paused-$key" "$STATE/.paused-rechecked-$key" "$STATE/.paused-resurfaced-$key" \
-    "$STATE/.merge-resurfaced-$key"
+  rm -f "$STATE/.paused-$key" "$STATE/.paused-rechecked-$key" "$STATE/.paused-resurfaced-$key"
 }
 
 clear_pause_tracking() {  # <window>
@@ -910,10 +909,16 @@ EOF
       clear_pause_tracking "$w"
     fi
     # The merge recheck throttle is anchored on the status file, never on the pane
-    # hash, so it survives every redraw of an intentionally idle pane exactly like
-    # its .paused-resurfaced- sibling. It is dropped only where the lane genuinely
-    # leaves the classification - here (its status moved off the terminal-done
-    # wait) and in clear_pause_state.
+    # hash, so it survives every redraw of an intentionally idle pane. This is its
+    # SOLE owner: the merge absorb deliberately sets no .paused- flag, so a lane
+    # whose status ends in a trailing declared pause still reaches
+    # clear_pause_tracking on a changed hash (pause_state_class returns none while
+    # its agent is alive), and letting that path clear the throttle too would put
+    # the cadence back under pane-hash control for exactly the done-then-paused
+    # shape this absorb exists for. Dropped here and only here, when the status
+    # itself leaves the terminal-done wait - the definition of the classification
+    # ending. A throttle left behind by any other transition can only delay the
+    # next recheck by at most one window, never suppress it.
     if [ -e "$STATE/.merge-resurfaced-$key" ] && ! status_line_can_be_terminal_done_wait "$last"; then
       rm -f "$STATE/.merge-resurfaced-$key"
     fi

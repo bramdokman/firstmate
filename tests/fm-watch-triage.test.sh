@@ -612,13 +612,28 @@ test_terminal_done_with_armed_merge_poll_is_absorbed() {
 # uses: past that window the lane re-surfaces once per window for confirmation,
 # as a recheck and never as a wedge.
 test_merge_monitored_stale_resurfaces_on_bounded_cadence() {
-  local dir state fakebin out drain_out window key pid statusf back sig
-  window="test:fm-queued-aged"
-  dir=$(arrange_merge_monitored_case merge-monitored-recheck "$window" \
-    "https://github.com/example/repo/pull/9") || fail "could not arrange a valid armed merge poll"
+  merge_monitored_recheck_cycle merge-monitored-recheck test:fm-queued-aged \
+    "https://github.com/example/repo/pull/9" ''
+  # The lane shape the incident actually has: firstmate appends a declared pause
+  # after the worker's final report to describe the merge wait. That trailing
+  # pause routes a changed pane hash through pause_state_class, which returns
+  # none while the agent is alive - a path that must NOT touch the merge throttle.
+  merge_monitored_recheck_cycle merge-monitored-recheck-paused test:fm-queued-aged-paused \
+    "https://github.com/example/repo/pull/10" 'paused: awaiting the merge queue'
+  pass "a merge-monitored terminal lane, with or without a trailing declared pause, rides the bounded recheck cadence across pane redraws"
+}
+
+# One aged-recheck-then-redraw cycle for a merge-monitored lane whose status
+# stream ends with <trailing-status-line> (empty for a bare terminal done:).
+merge_monitored_recheck_cycle() {  # <case-name> <window> <pr-url> <trailing-status-line>
+  local name=$1 window=$2 url=$3 trailing=$4
+  local dir state fakebin out drain_out key pid statusf back sig
+  dir=$(arrange_merge_monitored_case "$name" "$window" "$url") \
+    || fail "$name: could not arrange a valid armed merge poll"
   state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"; drain_out="$dir/drain.out"
   statusf="$state/queued.status"
   key=$(printf '%s' "$window" | tr ':/.' '___')
+  [ -z "$trailing" ] || printf '%s\n' "$trailing" >> "$statusf"
   # Age the completion itself past the recheck window (the cadence is anchored on
   # the status file, not on a per-hash marker), then re-prime .seen-*.
   back=$(( $(date +%s) - 500 ))
@@ -633,16 +648,16 @@ test_merge_monitored_stale_resurfaces_on_bounded_cadence() {
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
   if ! wait_for_exit "$pid" 40; then
-    reap "$pid"; fail "a merge-monitored lane past the recheck window was suppressed forever"
+    reap "$pid"; fail "$name: a merge-monitored lane past the recheck window was suppressed forever"
   fi
-  grep -F "stale: $window" "$out" >/dev/null || fail "the merge-monitored recheck printed no stale wake"
-  grep -F "merge poll armed" "$out" >/dev/null || fail "the recheck was not labeled a merge-poll recheck"
-  grep -F "possible wedge" "$out" >/dev/null && fail "a merge-monitored recheck was mislabeled a possible wedge"
-  [ -e "$state/.merge-resurfaced-$key" ] || fail "the merge-monitored re-surface throttle marker was not recorded"
-  [ ! -e "$state/.stale-since-$key" ] || fail "a merge-monitored recheck must not use the wedge timer"
-  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after the merge-monitored recheck failed"
+  grep -F "stale: $window" "$out" >/dev/null || fail "$name: the merge-monitored recheck printed no stale wake"
+  grep -F "merge poll armed" "$out" >/dev/null || fail "$name: the recheck was not labeled a merge-poll recheck"
+  grep -F "possible wedge" "$out" >/dev/null && fail "$name: a merge-monitored recheck was mislabeled a possible wedge"
+  [ -e "$state/.merge-resurfaced-$key" ] || fail "$name: the merge-monitored re-surface throttle marker was not recorded"
+  [ ! -e "$state/.stale-since-$key" ] || fail "$name: a merge-monitored recheck must not use the wedge timer"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "$name: drain after the merge-monitored recheck failed"
   grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null \
-    || fail "the merge-monitored recheck was not queued"
+    || fail "$name: the merge-monitored recheck was not queued"
 
   # The throttle is anchored on the lane's status file, NOT on the pane hash: an
   # idle pane that merely redraws (a footer, a clock, a token counter) must not
@@ -655,16 +670,15 @@ test_merge_monitored_stale_resurfaces_on_bounded_cadence() {
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
   if ! wait_live "$pid" 70; then
-    reap "$pid"; fail "a pane redraw reset the merge recheck throttle and re-woke inside the window: $(cat "$out")"
+    reap "$pid"; fail "$name: a pane redraw reset the merge recheck throttle and re-woke inside the window: $(cat "$out")"
   fi
   grep -F "absorbed stale (terminal done, merge poll armed" "$state/.watch-triage.log" >/dev/null \
-    || fail "the redrawn pane never reached the merge-monitored absorb"
-  [ ! -s "$out" ] || fail "a redrawn merge-monitored pane printed a second wake inside the recheck window"
-  [ ! -s "$state/.wake-queue" ] || fail "a redrawn merge-monitored pane enqueued a second wake inside the recheck window"
-  [ -e "$state/.merge-resurfaced-$key" ] || fail "a pane redraw erased the merge recheck throttle"
+    || fail "$name: the redrawn pane never reached the merge-monitored absorb"
+  [ ! -s "$out" ] || fail "$name: a redrawn merge-monitored pane printed a second wake inside the recheck window"
+  [ ! -s "$state/.wake-queue" ] || fail "$name: a redrawn merge-monitored pane enqueued a second wake inside the recheck window"
+  [ -e "$state/.merge-resurfaced-$key" ] || fail "$name: a pane redraw erased the merge recheck throttle"
   reap "$pid"
   unset FM_FAKE_CREW_STATE
-  pass "a merge-monitored terminal lane rides the bounded recheck cadence instead of being suppressed permanently"
 }
 
 # --- absent / corrupt / mismatched poll artifacts: still escalate ------------
