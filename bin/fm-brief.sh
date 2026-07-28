@@ -34,8 +34,10 @@
 #   local-only   implement on branch, stop and report "ready in branch" (no push/PR);
 #                captain approves, firstmate merges to local main
 # Ship briefs begin with a worktree-isolation assertion before the branch step.
-# PR-producing ship briefs require an issue-closing keyword when the task names
-# a GitHub issue, while warning that firstmate still verifies closure after merge.
+# PR-producing ship briefs carry a standalone PR-body step in their definition of
+# done: when the task names a GitHub issue, the closing keyword goes at the end of
+# the PR body and never in the title, and firstmate still verifies closure after
+# merge. Local-only briefs omit the step entirely.
 # Ship and scout briefs prefer GitHub REST reads and leave merge-queue polling
 # to firstmate.
 # Scout tasks ignore mode - their deliverable is a report, not a merge.
@@ -294,6 +296,12 @@ read -r MODE _ <<EOF
 $("$FM_ROOT/bin/fm-project-mode.sh" "$REPO")
 EOF
 
+IFS= read -r -d '' PR_BODY_GUIDANCE <<'EOF' || true
+**PR body:** if the task names a GitHub issue, put the closing keyword (`Closes #123`) on its own line at the end of the PR body - never in the PR title.
+This is required good practice, not proof of closure: GitHub may ignore the keyword, and firstmate verifies issue state after merge regardless.
+EOF
+PR_BODY_GUIDANCE=${PR_BODY_GUIDANCE%$'\n'}
+
 case "$MODE" in
   direct-PR)
     SETUP2=""
@@ -303,6 +311,9 @@ case "$MODE" in
 This project ships **direct-PR**: you raise the PR yourself, without the no-mistakes pipeline.
 The task is complete only when committed on your branch.
 When it is implemented and committed, push your branch and open a PR with \`gh-axi\`, then append \`done: PR {url}\` to the status file and stop.
+
+$PR_BODY_GUIDANCE
+
 Do NOT run /no-mistakes. The configured merge authority decides whether to merge the PR; firstmate relays the outcome.
 EOF
     ;;
@@ -328,6 +339,8 @@ The task is complete only when committed on your branch.
 When you believe it is complete, append \`done: {summary}\` to the status file and stop.
 Firstmate will then instruct you to run /no-mistakes to validate and ship a PR.
 
+$PR_BODY_GUIDANCE
+
 You drive no-mistakes by responding to its gates, not by implementing fixes.
 Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
 Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
@@ -342,15 +355,6 @@ After /no-mistakes reports CI green (the CI-ready return point - do not wait for
 EOF
     ;;
 esac
-
-PR_BODY_GUIDANCE=""
-if [ "$MODE" != local-only ]; then
-IFS= read -r -d '' PR_BODY_GUIDANCE <<'EOF' || true
-   If the task names a GitHub issue, include a closing keyword such as `Closes #123` in the PR body.
-   This is required good practice, not proof of closure: GitHub may ignore the keyword, and firstmate verifies issue state after merge regardless.
-EOF
-PR_BODY_GUIDANCE=${PR_BODY_GUIDANCE%$'\n'}
-fi
 
 # read -r -d '' preserves the heredoc's trailing newline that the removed
 # $(...) command substitution used to strip. Drop that one newline so generated
@@ -378,7 +382,6 @@ If the top-level path is the primary checkout or not the worktree you were launc
 $RULE1
 2. Stay inside this worktree; modify nothing outside it.
 $GITHUB_READ_GUIDANCE
-$PR_BODY_GUIDANCE
 4. Report status by appending one line:
    \`echo "{state}: {one short line}" >> $STATUS_FILE\`
    States: working, needs-decision, blocked, $PAUSED_VERB, done, failed.

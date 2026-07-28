@@ -265,7 +265,7 @@ test_no_mistakes_dod_wording() {
 }
 
 test_ship_project_memory_wording() {
-  local home id brief
+  local home id brief precedence_line helper_line
   home="$TMP_ROOT/project-memory-home"
   mkdir -p "$home/data"
   id="brief-memory-c1"
@@ -276,8 +276,12 @@ test_ship_project_memory_wording() {
     "project-memory contract did not subordinate the generic guidance to task-specific constraints"
   assert_grep "If the task forbids, replaces, or narrows project-memory work, follow that constraint and do not run the helper unless the task explicitly allows it." "$brief" \
     "project-memory contract did not make a task-specific prohibition decisive"
-  assert_no_grep "If \`AGENTS.md\` or \`CLAUDE.md\` already exists, or if this task produced durable project-intrinsic knowledge, run" "$brief" \
+  assert_grep "Otherwise, if \`AGENTS.md\` or \`CLAUDE.md\` already exists, or if this task produced durable project-intrinsic knowledge, run" "$brief" \
     "project-memory contract retained the unconditional helper instruction"
+  precedence_line=$(grep -n -F -- "Task-specific project-memory constraints take precedence" "$brief" | cut -d: -f1)
+  helper_line=$(grep -n -F -- "Otherwise, if \`AGENTS.md\`" "$brief" | cut -d: -f1)
+  [ -n "$precedence_line" ] && [ -n "$helper_line" ] && [ "$precedence_line" -lt "$helper_line" ] \
+    || fail "project-memory helper step is not subordinated to the task-specific precedence rule"
   assert_grep "Record only project knowledge useful to almost every future session." "$brief" \
     "project-memory contract lost the durable-knowledge bar"
   assert_grep "prefer a pointer to the authoritative file, command, or doc over copying the detail" "$brief" \
@@ -288,7 +292,7 @@ test_ship_project_memory_wording() {
 }
 
 test_issue_linked_ship_requires_pr_closing_keyword() {
-  local home id brief
+  local home id brief dod_line keyword_line
   home="$TMP_ROOT/issue-closing-home"
   write_registry "$home"
 
@@ -297,17 +301,24 @@ test_issue_linked_ship_requires_pr_closing_keyword() {
     proj=${id_proj##*:}
     FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" "$proj" >/dev/null 2>&1
     brief="$home/data/$id/brief.md"
-    assert_grep "If the task names a GitHub issue, include a closing keyword such as \`Closes #123\` in the PR body." "$brief" \
-      "$id: PR-producing brief did not require an issue-closing keyword"
+    assert_grep "**PR body:** if the task names a GitHub issue, put the closing keyword (\`Closes #123\`) on its own line at the end of the PR body - never in the PR title." "$brief" \
+      "$id: PR-producing brief did not pin the closing keyword to the end of the PR body"
     assert_grep "GitHub may ignore the keyword, and firstmate verifies issue state after merge regardless." "$brief" \
       "$id: closing-keyword guidance implied that the keyword proves closure"
+    dod_line=$(grep -n -F -- "# Definition of done" "$brief" | cut -d: -f1)
+    keyword_line=$(grep -n -F -- "**PR body:**" "$brief" | cut -d: -f1)
+    [ -n "$dod_line" ] && [ -n "$keyword_line" ] && [ "$dod_line" -lt "$keyword_line" ] \
+      || fail "$id: closing-keyword step is nested in the Rules list instead of standing alone under Definition of done"
   done
 
   id="fix-issue-local"
   FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" local-proj >/dev/null 2>&1
   brief="$home/data/$id/brief.md"
-  assert_no_grep "include a closing keyword" "$brief" \
+  assert_no_grep "closing keyword" "$brief" \
     "local-only brief required a PR-body keyword even though it forbids PRs"
+  grep -A1 -F -- "Never poll merge-queue state; firstmate already tracks it." "$brief" \
+    | grep -q -F -- "4. Report status by appending one line:" \
+    || fail "local-only Rules list has a gap between rule 3 and rule 4"
   pass "fm-brief.sh: issue-linked PR briefs require a keyword without treating it as closure proof"
 }
 
