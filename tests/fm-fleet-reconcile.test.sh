@@ -575,6 +575,13 @@ test_repository_default_branch_is_resolved_per_repository() {
   assert_contains "$RUN_OUTPUT" "acme/app trunk" \
     "an explicit override must select the branch without consulting the repository record"
 
+  RUN_OUTPUT=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_TEST_SCENARIO=override-branch \
+    FM_RECONCILE_MAIN_BRANCH='tru\nk' "$RECONCILE" --repo acme/app 2>&1)
+  RUN_RC=$?
+  expect_code 2 "$RUN_RC" "branch override containing a backslash"
+  assert_contains "$RUN_OUTPUT" "FM_RECONCILE_MAIN_BRANCH is not a usable branch name" \
+    "a branch name git itself refuses must be could-not-verify before any request"
+
   run_reconciler "$home" "$fakebin" default-branch-missing
   expect_code 2 "$RUN_RC" "unreported default branch"
   assert_contains "$RUN_OUTPUT" "could not verify acme/app default branch" \
