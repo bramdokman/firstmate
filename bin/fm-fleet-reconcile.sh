@@ -12,18 +12,41 @@
 # and task PR records.
 # Repeat --repo owner/name to restrict the observation scope.
 #
-# The vacuous-green detector treats successful check runs whose names match
-# FM_RECONCILE_TEST_JOB_PATTERN as real test execution, except names matching
-# FM_RECONCILE_META_JOB_PATTERN.
+# A task's recorded PR claim is read through the same hardened metadata parser
+# the PR commands gate on, so a duplicated, symlinked, hardlinked, or otherwise
+# unparseable claim is reported could-not-verify rather than reconciled against
+# whichever URL happens to parse.
+#
+# The vacuous-green detector inspects every open change rather than only the
+# ones GitHub already reports mergeable, because a change waiting on review is
+# still a change whose tests may never have run.
+# Mergeability GitHub has not computed is reported could-not-verify.
+# A change whose check runs have not all completed is still executing, so it
+# yields no vacuous result at all.
+# Once the checks are complete, successful check runs whose names match
+# FM_RECONCILE_TEST_JOB_PATTERN count as real test execution, except names
+# matching FM_RECONCILE_META_JOB_PATTERN.
 # A successful FM_RECONCILE_NOT_APPLICABLE_PATTERN check is an explicit
-# not-applicable attestation.
+# not-applicable attestation and reconciles.
 # When only a generic FM_RECONCILE_APPLICABILITY_JOB_PATTERN check succeeded,
 # the check-run API cannot prove its decision, so the result is could-not-verify
 # instead of a false divergence.
+# Only zero real tests with no successful evaluator at all is a divergence.
+#
 # Deploy checks inspect the latest FM_RECONCILE_DEPLOY_RUNS successful runs for
-# workflows matching FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN.
+# workflows matching FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN, and observe only runs
+# created within the last FM_RECONCILE_DEPLOY_MAX_AGE_DAYS days.
+# That age bound is the contract that keeps the per-run job requests cheap
+# enough for a heartbeat, and lets a historical selector-only deploy expire
+# instead of pinning the exit code to 1 forever on a rarely deploying
+# repository.
 # A selector-only deploy is one completed job matching
 # FM_RECONCILE_DEPLOY_SELECTOR_PATTERN and no other completed job.
+#
+# Failure-like check conclusions on the main branch are divergences.
+# The cancelled and stale conclusions are routine rather than red - a superseded
+# concurrency group or a re-run leaves them behind - so they are reported
+# could-not-verify instead of as a broken branch or as silence.
 #
 # This command deliberately does not query merge-queue state, infer current
 # worker state from historical status events, or guess that an old open PR was
@@ -33,14 +56,15 @@
 #
 # Environment:
 #   FM_HOME, FM_STATE_OVERRIDE, FM_DATA_OVERRIDE
-#   FM_RECONCILE_MAIN_BRANCH             default: main
-#   FM_RECONCILE_TEST_JOB_PATTERN         default: common real-test job names
-#   FM_RECONCILE_META_JOB_PATTERN         default: selector/summary/gate names
+#   FM_RECONCILE_MAIN_BRANCH               default: main
+#   FM_RECONCILE_TEST_JOB_PATTERN          default: common real-test job names
+#   FM_RECONCILE_META_JOB_PATTERN          default: selector/summary/gate names
 #   FM_RECONCILE_APPLICABILITY_JOB_PATTERN default: change/path detector names
-#   FM_RECONCILE_NOT_APPLICABLE_PATTERN   default: explicit no-tests-needed names
-#   FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN  default: deploy|release
-#   FM_RECONCILE_DEPLOY_SELECTOR_PATTERN  default: selector/candidate/plan names
-#   FM_RECONCILE_DEPLOY_RUNS              default: 5, range: 1..20
+#   FM_RECONCILE_NOT_APPLICABLE_PATTERN    default: explicit no-tests-needed names
+#   FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN   default: deploy|release
+#   FM_RECONCILE_DEPLOY_SELECTOR_PATTERN   default: selector/candidate/plan names
+#   FM_RECONCILE_DEPLOY_RUNS               default: 5, range: 1..20
+#   FM_RECONCILE_DEPLOY_MAX_AGE_DAYS       default: 14, range: 1..365
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,11 +82,12 @@ PROJECT_REGISTRY="$DATA/projects.md"
 MAIN_BRANCH=${FM_RECONCILE_MAIN_BRANCH:-main}
 TEST_JOB_PATTERN=${FM_RECONCILE_TEST_JOB_PATTERN:-'integration|db gates|packages|browser|(^|[^[:alnum:]])tests?([^[:alnum:]]|$)|e2e|typecheck.*build|jest|vitest|playwright|cypress|parity|smoke'}
 META_JOB_PATTERN=${FM_RECONCILE_META_JOB_PATTERN:-'selector|summary|aggregate|required check|merge gate|build, test, tenant-isolation gate'}
-APPLICABILITY_JOB_PATTERN=${FM_RECONCILE_APPLICABILITY_JOB_PATTERN:-'detect.*(change|surface|app)|change.*detect|path.*filter|select.*(test|suite|surface|applicab)'}
+APPLICABILITY_JOB_PATTERN=${FM_RECONCILE_APPLICABILITY_JOB_PATTERN:-'(^|[^[:alnum:]])(changes?|filters?|detect|paths?.filters?|changed.files)([^[:alnum:]]|$)|detect.*(change|surface|app)|change.*detect|path.*filter|select.*(test|suite|surface|applicab)'}
 NOT_APPLICABLE_PATTERN=${FM_RECONCILE_NOT_APPLICABLE_PATTERN:-'not applicable|docs.only|no tests required|tests skipped by path filter'}
 DEPLOY_WORKFLOW_PATTERN=${FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN:-'deploy|release'}
 DEPLOY_SELECTOR_PATTERN=${FM_RECONCILE_DEPLOY_SELECTOR_PATTERN:-'select|selector|candidate|determine|changes|plan'}
 DEPLOY_RUNS=${FM_RECONCILE_DEPLOY_RUNS:-5}
+DEPLOY_MAX_AGE_DAYS=${FM_RECONCILE_DEPLOY_MAX_AGE_DAYS:-14}
 
 DIVERGENCES=0
 UNVERIFIED=0
@@ -81,7 +106,11 @@ BRANCH_NAMES=()
 BRANCH_WORKTREES=()
 
 usage() {
-  sed -n '2,38{s/^# \{0,1\}//;p;}' "$0"
+  awk '
+    NR == 1 { next }
+    /^#/ { line = $0; sub(/^# ?/, "", line); print line; next }
+    { exit }
+  ' "$0"
   printf '\nusage: fm-fleet-reconcile.sh [--repo owner/name]...\n'
 }
 
@@ -112,7 +141,7 @@ nonnegative_integer() {
 
 repo_present() {
   local wanted=$1 repo
-  for repo in "${REPOS[@]}"; do
+  for repo in "${REPOS[@]+"${REPOS[@]}"}"; do
     [ "$repo" = "$wanted" ] && return 0
   done
   return 1
@@ -260,30 +289,34 @@ discover_registry_repos() {
   done < "$PROJECT_REGISTRY"
 }
 
+meta_claims_pr() {
+  grep -q '^pr=' "$1" 2>/dev/null
+}
+
 discover_meta_tasks() {
-  local meta id pr_url repo pr worktree project status landed=0 status_match branch
+  local meta id repo pr worktree project status landed=0 status_match branch
   for meta in "$STATE"/*.meta; do
     [ -f "$meta" ] || continue
     id=${meta##*/}
     id=${id%.meta}
     status="$STATE/$id.status"
-    pr_url=$(meta_value "$meta" pr)
     worktree=$(meta_value "$meta" worktree)
     [ -n "$worktree" ] || worktree=-
     project=$(meta_value "$meta" project)
     repo=
     pr=
-    if [ -n "$pr_url" ]; then
-      if ! fm_pr_url_parse "$pr_url"; then
-        could_not_verify "task $id change" "recorded PR URL is invalid"
+    if meta_claims_pr "$meta"; then
+      if ! fm_pr_metadata_identity_parse "$meta"; then
+        could_not_verify "task $id change" \
+          "its metadata does not record exactly one parseable PR claim in an unshared regular file"
         continue
       fi
-      if [ "$FM_PR_PROVIDER" != github ]; then
+      if [ "$FM_PR_META_PROVIDER" != github ]; then
         could_not_verify "task $id change" "the reconciler currently observes GitHub PRs only"
         continue
       fi
-      repo=$FM_PR_PATH
-      pr=$FM_PR_NUMBER
+      repo=$FM_PR_META_PATH
+      pr=$FM_PR_META_NUMBER
     elif status_match=$(pr_from_status_url "$status"); then
       repo=${status_match% *}
       pr=${status_match##* }
@@ -383,6 +416,28 @@ api_get() {
   fi
 }
 
+api_jq() {
+  printf '%s' "$API_RESULT" | jq "$@"
+}
+
+# Reports whether the response carried every record it counted. Returns 2 when
+# the counts themselves are missing and 1 when the page is short, so a caller
+# whose verdict would be wrong on partial data can return while a caller that
+# only reports what it did see keeps going. Both outcomes are could-not-verify.
+api_counts_complete() {
+  local subject=$1 returned_filter=$2 noun=$3 total returned
+  total=$(api_jq -r '.total_count // -1')
+  returned=$(api_jq -r "$returned_filter")
+  if ! nonnegative_integer "$total" || ! nonnegative_integer "$returned"; then
+    could_not_verify "$subject" "GitHub REST omitted $noun counts"
+    return 2
+  fi
+  if [ "$total" -gt "$returned" ]; then
+    could_not_verify "$subject" "more than $returned $noun exist"
+    return 1
+  fi
+}
+
 discover_branch_prs() {
   local i id repo branch worktree owner head_query count pr
   for ((i = 0; i < ${#BRANCH_TASK_IDS[@]}; i++)); do
@@ -395,19 +450,19 @@ discover_branch_prs() {
     api_get "open change for task $id branch $branch" \
       "/repos/$repo/pulls?state=open&head=$head_query&per_page=2" \
       '{pulls:[.[]|{number}]}' || continue
-    if ! printf '%s' "$API_RESULT" | jq -e '.pulls | type == "array"' >/dev/null; then
+    if ! api_jq -e '.pulls | type == "array"' >/dev/null; then
       could_not_verify "open change for task $id branch $branch" \
         "GitHub REST omitted the PR list"
       continue
     fi
-    count=$(printf '%s' "$API_RESULT" | jq '.pulls | length')
+    count=$(api_jq '.pulls | length')
     if [ "$count" -gt 1 ]; then
       could_not_verify "open change for task $id branch $branch" \
         "more than one open PR uses that fleet branch"
       continue
     fi
     [ "$count" -eq 1 ] || continue
-    pr=$(printf '%s' "$API_RESULT" | jq -r '.pulls[0].number')
+    pr=$(api_jq -r '.pulls[0].number')
     if ! nonnegative_integer "$pr"; then
       could_not_verify "open change for task $id branch $branch" \
         "GitHub REST returned an invalid PR number"
@@ -419,11 +474,11 @@ discover_branch_prs() {
 
 check_task_pr() {
   local id=$1 repo=$2 pr=$3 worktree=$4 landed=$5 source=$6
-  local merged state mergeable head total returned green real evaluated not_applicable
+  local merged state mergeable head incomplete green real evaluated not_applicable
   api_get "$repo PR #$pr" "/repos/$repo/pulls/$pr" \
     '{merged,state,mergeable_state,head:{sha:.head.sha}}' || return 0
-  merged=$(printf '%s' "$API_RESULT" | jq -r 'if (.merged | type) == "boolean" then .merged else "invalid" end')
-  state=$(printf '%s' "$API_RESULT" | jq -r '.state // "invalid"')
+  merged=$(api_jq -r 'if (.merged | type) == "boolean" then .merged else "invalid" end')
+  state=$(api_jq -r '.state // "invalid"')
   if [ "$merged" = invalid ] || { [ "$state" != open ] && [ "$state" != closed ]; }; then
     could_not_verify "$repo PR #$pr" "GitHub REST omitted its merged or state field"
     return 0
@@ -441,37 +496,27 @@ check_task_pr() {
   fi
 
   [ "$state" = open ] || return 0
-  mergeable=$(printf '%s' "$API_RESULT" | jq -r '.mergeable_state // "unknown"')
-  case "$mergeable" in
-    clean) ;;
-    unknown)
-      could_not_verify "vacuous-green state for $repo PR #$pr" "GitHub has not computed mergeability"
-      return 0
-      ;;
-    *) return 0 ;;
-  esac
-  head=$(printf '%s' "$API_RESULT" | jq -r '.head.sha // empty')
+  mergeable=$(api_jq -r '.mergeable_state // "unknown"')
+  if [ "$mergeable" = unknown ]; then
+    could_not_verify "vacuous-green state for $repo PR #$pr" "GitHub has not computed mergeability"
+    return 0
+  fi
+  head=$(api_jq -r '.head.sha // empty')
   if ! fm_pr_head_valid "$head"; then
     could_not_verify "vacuous-green state for $repo PR #$pr" "GitHub REST omitted a valid head SHA"
     return 0
   fi
   api_get "check execution for $repo PR #$pr" \
     "/repos/$repo/commits/$head/check-runs?per_page=100" \
-    '{total_count,check_runs:[.check_runs[]|{name,conclusion}]}' || return 0
-  total=$(printf '%s' "$API_RESULT" | jq -r '.total_count // -1')
-  returned=$(printf '%s' "$API_RESULT" | jq -r '.check_runs | if type == "array" then length else -1 end')
-  case "$total:$returned" in
-    *[!0-9:]*|*:-1|-1:*)
-      could_not_verify "check execution for $repo PR #$pr" "GitHub REST omitted check-run counts"
-      return 0
-      ;;
-  esac
-  if [ "$total" -gt "$returned" ]; then
-    could_not_verify "check execution for $repo PR #$pr" "more than 100 check runs exist"
-    return 0
-  fi
-  green=$(printf '%s' "$API_RESULT" | jq '[.check_runs[] | select(.conclusion == "success")] | length')
-  real=$(printf '%s' "$API_RESULT" | jq \
+    '{total_count,check_runs:[.check_runs[]|{name,status,conclusion}]}' || return 0
+  api_counts_complete "check execution for $repo PR #$pr" \
+    '.check_runs | if type == "array" then length else -1 end' 'check runs' || return 0
+  incomplete=$(api_jq '[.check_runs[]
+    | select(.conclusion == null or ((.status // "completed") != "completed"))
+  ] | length')
+  [ "$incomplete" -eq 0 ] || return 0
+  green=$(api_jq '[.check_runs[] | select(.conclusion == "success")] | length')
+  real=$(api_jq \
     --arg real "$TEST_JOB_PATTERN" \
     --arg meta "$META_JOB_PATTERN" \
     '[.check_runs[]
@@ -480,14 +525,14 @@ check_task_pr() {
       | select((.name | test($meta; "i")) | not)
     ] | length')
   if [ "$green" -gt 0 ] && [ "$real" -eq 0 ]; then
-    not_applicable=$(printf '%s' "$API_RESULT" | jq \
+    not_applicable=$(api_jq \
       --arg pattern "$NOT_APPLICABLE_PATTERN" \
       '[.check_runs[]
         | select(.conclusion == "success")
         | select(.name | test($pattern; "i"))
       ] | length')
     [ "$not_applicable" -eq 0 ] || return 0
-    evaluated=$(printf '%s' "$API_RESULT" | jq \
+    evaluated=$(api_jq \
       --arg pattern "$APPLICABILITY_JOB_PATTERN" \
       '[.check_runs[]
         | select(.conclusion == "success")
@@ -497,13 +542,13 @@ check_task_pr() {
       could_not_verify "vacuous-green applicability for $repo PR #$pr" \
         "an applicability job ran, but check-run names do not attest whether running zero tests was correct"
     else
-      divergence "$repo PR #$pr reads mergeable with $green successful checks, but zero real test jobs executed and no applicability job evaluated the change"
+      divergence "$repo PR #$pr completed $green successful checks, but zero real test jobs executed and no applicability job evaluated the change"
     fi
   fi
 }
 
 check_main() {
-  local repo=$1 total returned failures names legacy_count legacy_failures sha
+  local repo=$1 failures names uncertain uncertain_names legacy_count legacy_failures sha
   api_get "$repo $MAIN_BRANCH checks" \
     "/repos/$repo/commits/$MAIN_BRANCH/check-runs?per_page=100" \
     '{
@@ -514,33 +559,35 @@ check_main() {
         .check_runs[]
         | select(.conclusion == "failure"
           or .conclusion == "timed_out"
-          or .conclusion == "cancelled"
           or .conclusion == "action_required"
-          or .conclusion == "startup_failure"
-          or .conclusion == "stale")
+          or .conclusion == "startup_failure")
+        | {name,conclusion}
+      ],
+      uncertain:[
+        .check_runs[]
+        | select(.conclusion == "cancelled" or .conclusion == "stale")
         | {name,conclusion}
       ]
     }' || return 0
-  total=$(printf '%s' "$API_RESULT" | jq -r '.total_count // -1')
-  returned=$(printf '%s' "$API_RESULT" | jq -r '.returned // -1')
-  if ! nonnegative_integer "$total" || ! nonnegative_integer "$returned"; then
-    could_not_verify "$repo $MAIN_BRANCH checks" "GitHub REST omitted check-run counts"
-    return 0
-  fi
-  if [ "$total" -gt "$returned" ]; then
-    could_not_verify "$repo $MAIN_BRANCH checks" "more than 100 check runs exist"
-  fi
-  failures=$(printf '%s' "$API_RESULT" | jq '.failures | length')
+  api_counts_complete "$repo $MAIN_BRANCH checks" '.returned // -1' 'check runs'
+  [ "$?" -ne 2 ] || return 0
+  sha=$(api_jq -r '.sha // empty | .[0:8]')
+  failures=$(api_jq '.failures | length')
   if [ "$failures" -gt 0 ]; then
-    names=$(printf '%s' "$API_RESULT" | jq -r '[.failures[].name][0:5] | join(", ")')
-    sha=$(printf '%s' "$API_RESULT" | jq -r '.sha // empty | .[0:8]')
+    names=$(api_jq -r '[.failures[].name][0:5] | join(", ")')
     divergence "$repo $MAIN_BRANCH${sha:+ ($sha)} has $failures failing checks${names:+: $names}"
+  fi
+  uncertain=$(api_jq '.uncertain | length')
+  if [ "$uncertain" -gt 0 ]; then
+    uncertain_names=$(api_jq -r '[.uncertain[].name][0:5] | join(", ")')
+    could_not_verify "$repo $MAIN_BRANCH${sha:+ ($sha)} checks" \
+      "$uncertain checks were cancelled or went stale, which is routine but leaves them unproven${uncertain_names:+: $uncertain_names}"
   fi
 
   api_get "$repo $MAIN_BRANCH commit statuses" \
     "/repos/$repo/commits/$MAIN_BRANCH/status?per_page=100" \
     '{statuses:[.statuses[]|{context,state}]}' || return 0
-  legacy_count=$(printf '%s' "$API_RESULT" | jq -r '.statuses | if type == "array" then length else -1 end')
+  legacy_count=$(api_jq -r '.statuses | if type == "array" then length else -1 end')
   if ! nonnegative_integer "$legacy_count"; then
     could_not_verify "$repo $MAIN_BRANCH commit statuses" "GitHub REST omitted status records"
     return 0
@@ -548,7 +595,7 @@ check_main() {
   if [ "$legacy_count" -ge 100 ]; then
     could_not_verify "$repo $MAIN_BRANCH commit statuses" "at least 100 status records exist"
   fi
-  legacy_failures=$(printf '%s' "$API_RESULT" | jq \
+  legacy_failures=$(api_jq \
     '[.statuses[] | select(.state == "failure" or .state == "error")] | length')
   if [ "$legacy_failures" -gt 0 ]; then
     divergence "$repo $MAIN_BRANCH has $legacy_failures failing legacy commit statuses"
@@ -556,49 +603,35 @@ check_main() {
 }
 
 check_deploy_run() {
-  local repo=$1 workflow=$2 run_id=$3 created=$4 total returned completed selector_name selector_count
+  local repo=$1 workflow=$2 run_id=$3 created=$4 completed selector_name selector_count
   api_get "$repo deploy run $run_id jobs" \
     "/repos/$repo/actions/runs/$run_id/jobs?per_page=100" \
     '{total_count,jobs:[.jobs[]|{name,conclusion}]}' || return 0
-  total=$(printf '%s' "$API_RESULT" | jq -r '.total_count // -1')
-  returned=$(printf '%s' "$API_RESULT" | jq -r '.jobs | if type == "array" then length else -1 end')
-  if ! nonnegative_integer "$total" || ! nonnegative_integer "$returned"; then
-    could_not_verify "$repo deploy run $run_id jobs" "GitHub REST omitted job counts"
-    return 0
-  fi
-  if [ "$total" -gt "$returned" ]; then
-    could_not_verify "$repo deploy run $run_id jobs" "more than 100 jobs exist"
-    return 0
-  fi
-  completed=$(printf '%s' "$API_RESULT" | jq \
+  api_counts_complete "$repo deploy run $run_id jobs" \
+    '.jobs | if type == "array" then length else -1 end' 'jobs' || return 0
+  completed=$(api_jq \
     '[.jobs[] | select(.conclusion != null and .conclusion != "skipped")] | length')
-  selector_count=$(printf '%s' "$API_RESULT" | jq --arg selector "$DEPLOY_SELECTOR_PATTERN" \
+  selector_count=$(api_jq --arg selector "$DEPLOY_SELECTOR_PATTERN" \
     '[.jobs[]
       | select(.conclusion != null and .conclusion != "skipped")
       | select(.name | test($selector; "i"))
     ] | length')
   if [ "$completed" -eq 1 ] && [ "$selector_count" -eq 1 ]; then
-    selector_name=$(printf '%s' "$API_RESULT" | jq -r \
+    selector_name=$(api_jq -r \
       '.jobs[] | select(.conclusion != null and .conclusion != "skipped") | .name' | head -1)
     divergence "$repo deploy workflow $workflow run $run_id at $created reported success, but ran only selector job \"$selector_name\""
   fi
 }
 
 check_deploys() {
-  local repo=$1 total returned workflows workflow_id workflow_name runs run_id created
+  local repo=$1 workflows workflow_id workflow_name runs run_id created age
   api_get "$repo deploy workflows" \
     "/repos/$repo/actions/workflows?per_page=100" \
     '{total_count,workflows:[.workflows[]|{id,name,path}]}' || return 0
-  total=$(printf '%s' "$API_RESULT" | jq -r '.total_count // -1')
-  returned=$(printf '%s' "$API_RESULT" | jq -r '.workflows | if type == "array" then length else -1 end')
-  if ! nonnegative_integer "$total" || ! nonnegative_integer "$returned"; then
-    could_not_verify "$repo deploy workflows" "GitHub REST omitted workflow counts"
-    return 0
-  fi
-  if [ "$total" -gt "$returned" ]; then
-    could_not_verify "$repo deploy workflows" "more than 100 workflows exist"
-  fi
-  workflows=$(printf '%s' "$API_RESULT" | jq -r --arg pattern "$DEPLOY_WORKFLOW_PATTERN" '
+  api_counts_complete "$repo deploy workflows" \
+    '.workflows | if type == "array" then length else -1 end' 'workflows'
+  [ "$?" -ne 2 ] || return 0
+  workflows=$(api_jq -r --arg pattern "$DEPLOY_WORKFLOW_PATTERN" '
     .workflows[]
     | select((.name + " " + .path) | test($pattern; "i"))
     | [.id, .name] | @tsv
@@ -612,23 +645,41 @@ check_deploys() {
     api_get "$repo workflow $workflow_name successful runs" \
       "/repos/$repo/actions/workflows/$workflow_id/runs?status=success&per_page=$DEPLOY_RUNS" \
       '{workflow_runs:[.workflow_runs[]|{id,created_at}]}' || continue
-    if ! printf '%s' "$API_RESULT" | jq -e '.workflow_runs | type == "array"' >/dev/null; then
+    if ! api_jq -e '.workflow_runs | type == "array"' >/dev/null; then
       could_not_verify "$repo workflow $workflow_name successful runs" \
         "GitHub REST omitted workflow runs"
       continue
     fi
-    runs=$(printf '%s' "$API_RESULT" | jq -r --argjson limit "$DEPLOY_RUNS" '
+    runs=$(api_jq -r --argjson limit "$DEPLOY_RUNS" \
+      --argjson maxage "$((DEPLOY_MAX_AGE_DAYS * 86400))" '
       .workflow_runs
       | if type == "array" then .[0:$limit][] else empty end
-      | [.id, .created_at] | @tsv
+      | . as $run
+      | ((.created_at | if type == "string" then (try fromdateiso8601 catch null) else null end)) as $ts
+      | [ $run.id,
+          ($run.created_at // ""),
+          (if $ts == null then "unreadable"
+           elif (now - $ts) <= $maxage then "recent"
+           else "expired" end)
+        ]
+      | @tsv
     ')
-    while IFS="$(printf '\t')" read -r run_id created || [ -n "${run_id:-}${created:-}" ]; do
+    while IFS="$(printf '\t')" read -r run_id created age || [ -n "${run_id:-}${created:-}" ]; do
       [ -n "${run_id:-}" ] || continue
       if ! nonnegative_integer "$run_id"; then
         could_not_verify "$repo workflow $workflow_name deploy run" \
           "GitHub REST returned an invalid run id"
         continue
       fi
+      case "${age:-}" in
+        recent) ;;
+        expired) continue ;;
+        *)
+          could_not_verify "$repo workflow $workflow_name deploy run $run_id" \
+            "GitHub REST returned no readable creation timestamp, so its age is unknown"
+          continue
+          ;;
+      esac
       check_deploy_run "$repo" "$workflow_name" "$run_id" "$created"
     done <<< "$runs"
   done <<< "$workflows"
@@ -666,6 +717,16 @@ case "$DEPLOY_RUNS" in
 esac
 if [ "$DEPLOY_RUNS" -lt 1 ] || [ "$DEPLOY_RUNS" -gt 20 ]; then
   printf 'could not verify configuration: FM_RECONCILE_DEPLOY_RUNS must be 1..20\n'
+  exit 2
+fi
+case "$DEPLOY_MAX_AGE_DAYS" in
+  ''|*[!0-9]*)
+    printf 'could not verify configuration: FM_RECONCILE_DEPLOY_MAX_AGE_DAYS must be 1..365\n'
+    exit 2
+    ;;
+esac
+if [ "$DEPLOY_MAX_AGE_DAYS" -lt 1 ] || [ "$DEPLOY_MAX_AGE_DAYS" -gt 365 ]; then
+  printf 'could not verify configuration: FM_RECONCILE_DEPLOY_MAX_AGE_DAYS must be 1..365\n'
   exit 2
 fi
 if ! command -v jq >/dev/null 2>&1; then
@@ -718,7 +779,7 @@ for ((i = 0; i < ${#TASK_IDS[@]}; i++)); do
     "${TASK_SOURCES[$i]}"
 done
 
-for repo in "${REPOS[@]}"; do
+for repo in "${REPOS[@]+"${REPOS[@]}"}"; do
   check_main "$repo"
   check_deploys "$repo"
 done

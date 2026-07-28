@@ -38,11 +38,11 @@ case "$path" in
       vacuous|untracked-vacuous|not-applicable|attested-not-applicable)
         printf '{"merged":false,"state":"open","mergeable_state":"clean","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
         ;;
-      landed-open)
-        printf '{"merged":false,"state":"open","mergeable_state":"blocked","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
-        ;;
       merged-copy)
         printf '{"merged":true,"state":"closed","mergeable_state":"unknown","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
+        ;;
+      unknown-mergeability)
+        printf '{"merged":false,"state":"open","mergeable_state":"unknown","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
         ;;
       partial)
         exit 1
@@ -62,23 +62,35 @@ case "$path" in
   /repos/acme/app/commits/1111111111111111111111111111111111111111/check-runs?per_page=100)
     case "${FM_TEST_SCENARIO:-}" in
       not-applicable)
-        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","conclusion":"success"},{"name":"Detect changed surfaces","conclusion":"success"},{"name":"API integration tests","conclusion":"skipped"}]}\n'
+        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"Detect changed surfaces","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
+        ;;
+      bare-changes)
+        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"changes","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
         ;;
       attested-not-applicable)
-        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","conclusion":"success"},{"name":"Tests not applicable - docs-only","conclusion":"success"},{"name":"API integration tests","conclusion":"skipped"}]}\n'
+        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"Tests not applicable - docs-only","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
+        ;;
+      running-checks)
+        printf '{"total_count":2,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"in_progress","conclusion":null}]}\n'
+        ;;
+      landed-open)
+        printf '{"total_count":2,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"success"}]}\n'
         ;;
       *)
-        printf '{"total_count":2,"check_runs":[{"name":"Required gate summary","conclusion":"success"},{"name":"API integration tests","conclusion":"skipped"}]}\n'
+        printf '{"total_count":2,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
         ;;
     esac
     ;;
   /repos/acme/app/commits/main/check-runs?per_page=100)
     case "${FM_TEST_SCENARIO:-}" in
       main-red|mixed)
-        printf '{"total_count":2,"returned":2,"failures":[{"name":"unit tests","conclusion":"failure"}],"sha":"2222222222222222222222222222222222222222"}\n'
+        printf '{"total_count":2,"returned":2,"failures":[{"name":"unit tests","conclusion":"failure"}],"uncertain":[],"sha":"2222222222222222222222222222222222222222"}\n'
+        ;;
+      main-superseded)
+        printf '{"total_count":2,"returned":2,"failures":[],"uncertain":[{"name":"unit tests","conclusion":"cancelled"},{"name":"required gate","conclusion":"stale"}],"sha":"2222222222222222222222222222222222222222"}\n'
         ;;
       *)
-        printf '{"total_count":1,"returned":1,"failures":[],"sha":"2222222222222222222222222222222222222222"}\n'
+        printf '{"total_count":1,"returned":1,"failures":[],"uncertain":[],"sha":"2222222222222222222222222222222222222222"}\n'
         ;;
     esac
     ;;
@@ -87,14 +99,21 @@ case "$path" in
     printf '{"state":"success","statuses":[]}\n'
     ;;
   /repos/acme/app/actions/workflows?per_page=100)
-    if [ "${FM_TEST_SCENARIO:-}" = deploy-selector ]; then
-      printf '{"total_count":1,"workflows":[{"id":9,"name":"Platform Deploy","path":".github/workflows/deploy.yml"}]}\n'
-    else
-      printf '{"total_count":0,"workflows":[]}\n'
-    fi
+    case "${FM_TEST_SCENARIO:-}" in
+      deploy-selector|deploy-expired)
+        printf '{"total_count":1,"workflows":[{"id":9,"name":"Platform Deploy","path":".github/workflows/deploy.yml"}]}\n'
+        ;;
+      *)
+        printf '{"total_count":0,"workflows":[]}\n'
+        ;;
+    esac
     ;;
   /repos/acme/app/actions/workflows/9/runs?status=success\&per_page=5)
-    printf '{"workflow_runs":[{"id":99,"created_at":"2026-07-28T12:00:00Z"}]}\n'
+    if [ "${FM_TEST_SCENARIO:-}" = deploy-expired ]; then
+      printf '{"workflow_runs":[{"id":99,"created_at":"2019-01-01T12:00:00Z"}]}\n'
+    else
+      printf '{"workflow_runs":[{"id":99,"created_at":"%s"}]}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    fi
     ;;
   /repos/acme/app/actions/runs/99/jobs?per_page=100)
     printf '{"total_count":3,"jobs":[{"name":"Select deploy candidates","conclusion":"success"},{"name":"Deploy API","conclusion":"skipped"},{"name":"Deploy web","conclusion":"skipped"}]}\n'
@@ -184,6 +203,77 @@ test_applicability_is_not_conflated_with_never_evaluated() {
   pass "not-applicable and never-evaluated outcomes remain distinct"
 }
 
+test_vacuous_green_is_not_gated_on_mergeability() {
+  local home fakebin
+  home=$(make_home mergeability)
+  fakebin=$(make_fakebin mergeability)
+  write_task "$home" "$home/worktree"
+
+  run_reconciler "$home" "$fakebin" blocked-vacuous
+  expect_code 1 "$RUN_RC" "vacuous green awaiting review"
+  assert_contains "$RUN_OUTPUT" "zero real test jobs executed" \
+    "a change whose tests never ran must be reported even before it is mergeable"
+
+  run_reconciler "$home" "$fakebin" unknown-mergeability
+  expect_code 2 "$RUN_RC" "uncomputed mergeability"
+  assert_contains "$RUN_OUTPUT" "GitHub has not computed mergeability" \
+    "unknown mergeability must be explicit uncertainty"
+  assert_not_contains "$RUN_OUTPUT" "divergence:" \
+    "unknown mergeability must not be reported as a divergence"
+  pass "vacuous green is judged on check completeness, not on mergeability"
+}
+
+test_running_checks_yield_no_vacuous_result() {
+  local home fakebin
+  home=$(make_home running)
+  fakebin=$(make_fakebin running)
+  write_task "$home" "$home/worktree"
+  run_reconciler "$home" "$fakebin" running-checks
+  expect_code 0 "$RUN_RC" "checks still running"
+  [ -z "$RUN_OUTPUT" ] \
+    || fail "an incomplete check set is still executing and must stay silent: $RUN_OUTPUT"
+  pass "a change whose checks have not completed yields no vacuous verdict"
+}
+
+test_bare_detection_job_is_recognised_as_an_evaluator() {
+  local home fakebin
+  home=$(make_home bare-changes)
+  fakebin=$(make_fakebin bare-changes)
+  write_task "$home" "$home/worktree"
+  run_reconciler "$home" "$fakebin" bare-changes
+  expect_code 2 "$RUN_RC" "bare changes evaluator"
+  assert_contains "$RUN_OUTPUT" "could not verify vacuous-green applicability" \
+    "a bare path-filter job is an applicability evaluator whose decision is not exposed"
+  assert_not_contains "$RUN_OUTPUT" "divergence:" \
+    "a docs-only change gated by a bare changes job must not be a false divergence"
+  pass "bare detection jobs are recognised instead of read as no evaluation at all"
+}
+
+test_unparseable_pr_claim_is_never_reconciled() {
+  local home fakebin
+  home=$(make_home duplicate-claim)
+  fakebin=$(make_fakebin duplicate-claim)
+  mkdir -p "$home/worktree"
+  fm_write_meta "$home/state/task.meta" \
+    "worktree=$home/worktree" \
+    "project=$home/project" \
+    "pr=https://github.com/acme/app/pull/7" \
+    "pr=https://github.com/acme/app/pull/8"
+  run_reconciler "$home" "$fakebin" clean
+  expect_code 2 "$RUN_RC" "duplicate PR claim"
+  assert_contains "$RUN_OUTPUT" "could not verify task task change" \
+    "a metadata file with two PR claims must not be silently reconciled against one of them"
+  assert_not_contains "$RUN_OUTPUT" "divergence:" \
+    "an unparseable claim is uncertainty, not an observed disagreement"
+
+  ln -sf "$home/state/task.meta" "$home/state/linked.meta"
+  run_reconciler "$home" "$fakebin" clean
+  expect_code 2 "$RUN_RC" "symlinked metadata"
+  assert_contains "$RUN_OUTPUT" "could not verify task linked change" \
+    "a symlinked metadata file must be refused the same way the PR commands refuse it"
+  pass "PR claims are read through the hardened metadata parser only"
+}
+
 test_done_claim_and_merged_copy_diverge() {
   local home fakebin
   home=$(make_home landed)
@@ -220,6 +310,44 @@ test_selector_only_deploy_and_red_main_diverge() {
   expect_code 1 "$RUN_RC" "red main"
   assert_contains "$RUN_OUTPUT" "main (22222222) has 1 failing checks" "red main must diverge"
   pass "selector-only deploys and failing main checks are caught"
+}
+
+test_deploy_observation_window_expires_by_age() {
+  local home fakebin
+  home=$(make_home deploy-age)
+  fakebin=$(make_fakebin deploy-age)
+  run_reconciler "$home" "$fakebin" deploy-expired
+  expect_code 0 "$RUN_RC" "expired deploy run"
+  [ -z "$RUN_OUTPUT" ] \
+    || fail "a deploy older than the observation window must not be re-reported forever: $RUN_OUTPUT"
+
+  RUN_OUTPUT=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_TEST_SCENARIO=deploy-selector \
+    FM_RECONCILE_DEPLOY_MAX_AGE_DAYS=1 "$RECONCILE" --repo acme/app 2>&1)
+  RUN_RC=$?
+  expect_code 1 "$RUN_RC" "deploy run inside the window"
+  assert_contains "$RUN_OUTPUT" "ran only selector job" \
+    "a selector-only deploy inside the observation window must still diverge"
+
+  RUN_OUTPUT=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_TEST_SCENARIO=deploy-selector \
+    FM_RECONCILE_DEPLOY_MAX_AGE_DAYS=0 "$RECONCILE" --repo acme/app 2>&1)
+  RUN_RC=$?
+  expect_code 2 "$RUN_RC" "invalid deploy window"
+  assert_contains "$RUN_OUTPUT" "FM_RECONCILE_DEPLOY_MAX_AGE_DAYS must be 1..365" \
+    "the age contract must be enforced explicitly"
+  pass "the deploy observation window is bounded by run age"
+}
+
+test_cancelled_and_stale_main_checks_are_uncertain() {
+  local home fakebin
+  home=$(make_home main-superseded)
+  fakebin=$(make_fakebin main-superseded)
+  run_reconciler "$home" "$fakebin" main-superseded
+  expect_code 2 "$RUN_RC" "cancelled and stale main checks"
+  assert_contains "$RUN_OUTPUT" "cancelled or went stale" \
+    "routine cancelled and stale checks must be reported as uncertainty"
+  assert_not_contains "$RUN_OUTPUT" "divergence:" \
+    "a superseded concurrency group is not a broken main branch"
+  pass "cancelled and stale main checks are neither divergence nor silence"
 }
 
 test_unavailable_and_partial_observations_exit_two() {
@@ -270,8 +398,14 @@ test_clean_is_silent
 test_deliberate_vacuous_green_divergence
 test_untracked_open_change_is_checked
 test_applicability_is_not_conflated_with_never_evaluated
+test_vacuous_green_is_not_gated_on_mergeability
+test_running_checks_yield_no_vacuous_result
+test_bare_detection_job_is_recognised_as_an_evaluator
+test_unparseable_pr_claim_is_never_reconciled
 test_done_claim_and_merged_copy_diverge
 test_selector_only_deploy_and_red_main_diverge
+test_deploy_observation_window_expires_by_age
+test_cancelled_and_stale_main_checks_are_uncertain
 test_unavailable_and_partial_observations_exit_two
 test_mixed_divergence_and_uncertainty_exit_two
 test_status_reference_is_not_claimed_as_task_pr
