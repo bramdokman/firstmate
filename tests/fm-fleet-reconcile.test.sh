@@ -36,19 +36,25 @@ case "$path" in
   /repos/acme/app/pulls/7)
     case "${FM_TEST_SCENARIO:-}" in
       vacuous|untracked-vacuous|not-applicable|attested-not-applicable)
-        printf '{"merged":false,"state":"open","mergeable_state":"clean","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
+        printf '{"merged":false,"state":"open","draft":false,"mergeable_state":"clean","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
         ;;
       merged-copy)
-        printf '{"merged":true,"state":"closed","mergeable_state":"unknown","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
+        printf '{"merged":true,"state":"closed","draft":false,"mergeable_state":"unknown","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
         ;;
       unknown-mergeability)
-        printf '{"merged":false,"state":"open","mergeable_state":"unknown","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
+        printf '{"merged":false,"state":"open","draft":false,"mergeable_state":"unknown","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
+        ;;
+      draft-vacuous)
+        printf '{"merged":false,"state":"open","draft":true,"mergeable_state":"blocked","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
+        ;;
+      draft-unknown)
+        printf '{"merged":false,"state":"open","mergeable_state":"blocked","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
         ;;
       partial)
         exit 1
         ;;
       *)
-        printf '{"merged":false,"state":"open","mergeable_state":"blocked","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
+        printf '{"merged":false,"state":"open","draft":false,"mergeable_state":"blocked","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
         ;;
     esac
     ;;
@@ -68,7 +74,10 @@ case "$path" in
         printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"changes","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
         ;;
       attested-not-applicable)
-        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"Tests not applicable - docs-only","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
+        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"Docs-only change","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
+        ;;
+      attested-testlike)
+        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"Tests skipped by path filter","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"completed","conclusion":"skipped"}]}\n'
         ;;
       running-checks)
         printf '{"total_count":2,"check_runs":[{"name":"Required gate summary","status":"completed","conclusion":"success"},{"name":"API integration tests","status":"in_progress","conclusion":null}]}\n'
@@ -201,6 +210,52 @@ test_applicability_is_not_conflated_with_never_evaluated() {
   [ -z "$RUN_OUTPUT" ] \
     || fail "an explicit successful not-applicable attestation should reconcile: $RUN_OUTPUT"
   pass "not-applicable and never-evaluated outcomes remain distinct"
+}
+
+test_attestation_is_not_counted_as_test_execution() {
+  local home fakebin
+  home=$(make_home attestation)
+  fakebin=$(make_fakebin attestation)
+  write_task "$home" "$home/worktree"
+
+  run_reconciler "$home" "$fakebin" attested-testlike
+  expect_code 0 "$RUN_RC" "test-shaped attestation"
+  [ -z "$RUN_OUTPUT" ] \
+    || fail "an attestation must reconcile as an attestation: $RUN_OUTPUT"
+
+  RUN_OUTPUT=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_TEST_SCENARIO=attested-testlike \
+    FM_RECONCILE_NOT_APPLICABLE_PATTERN='no attestation matches this' \
+    "$RECONCILE" --repo acme/app 2>&1)
+  RUN_RC=$?
+  expect_code 0 "$RUN_RC" "attestation withdrawn from the attestation vocabulary"
+  [ -z "$RUN_OUTPUT" ] \
+    || fail "withdrawing the attestation vocabulary must not turn the same run into a divergence: $RUN_OUTPUT"
+  pass "an attestation reconciles as an attestation whatever its name looks like"
+}
+
+test_draft_changes_are_out_of_vacuous_green_scope() {
+  local home fakebin
+  home=$(make_home draft)
+  fakebin=$(make_fakebin draft)
+  write_task "$home" "$home/worktree"
+
+  run_reconciler "$home" "$fakebin" draft-vacuous
+  expect_code 0 "$RUN_RC" "draft change"
+  [ -z "$RUN_OUTPUT" ] \
+    || fail "a draft asserts no readiness, so its deferred CI is not a divergence: $RUN_OUTPUT"
+
+  run_reconciler "$home" "$fakebin" blocked-vacuous
+  expect_code 1 "$RUN_RC" "ready change with the same checks"
+  assert_contains "$RUN_OUTPUT" "zero real test jobs executed" \
+    "the identical check set must diverge once the change is marked ready for review"
+
+  run_reconciler "$home" "$fakebin" draft-unknown
+  expect_code 2 "$RUN_RC" "undeterminable draft state"
+  assert_contains "$RUN_OUTPUT" "whether the change is still a draft" \
+    "an unreadable draft field must not be guessed in either direction"
+  assert_not_contains "$RUN_OUTPUT" "divergence:" \
+    "an unknown scope decision is uncertainty, not an observed disagreement"
+  pass "draft changes are out of scope and re-enter it the moment they are ready"
 }
 
 test_vacuous_green_is_not_gated_on_mergeability() {
@@ -398,6 +453,8 @@ test_clean_is_silent
 test_deliberate_vacuous_green_divergence
 test_untracked_open_change_is_checked
 test_applicability_is_not_conflated_with_never_evaluated
+test_attestation_is_not_counted_as_test_execution
+test_draft_changes_are_out_of_vacuous_green_scope
 test_vacuous_green_is_not_gated_on_mergeability
 test_running_checks_yield_no_vacuous_result
 test_bare_detection_job_is_recognised_as_an_evaluator

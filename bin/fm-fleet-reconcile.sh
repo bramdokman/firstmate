@@ -5,8 +5,15 @@
 # complete.
 # Silence with exit 0 means every check in scope reconciled.
 # Exit 1 means at least one divergence was observed.
-# Exit 2 means at least one check could not be verified, including a run that
-# also found divergences, because incomplete evidence must never read as clean.
+# Exit 2 means at least one check the command set out to perform could not be
+# completed, including a run that also found divergences, because a failed
+# observation must never read as clean.
+# An observation the command deliberately holds out of scope is a different
+# thing from a failed one: a draft change and a check suite that is still
+# executing are reported as nothing at all rather than as uncertainty, because
+# incomplete is not the same as untrue.
+# Only a check that was in scope and could not be carried out counts toward
+# exit 2.
 #
 # With no arguments, GitHub repositories are discovered from data/projects.md
 # and task PR records.
@@ -17,17 +24,31 @@
 # unparseable claim is reported could-not-verify rather than reconciled against
 # whichever URL happens to parse.
 #
-# The vacuous-green detector inspects every open change rather than only the
-# ones GitHub already reports mergeable, because a change waiting on review is
-# still a change whose tests may never have run.
+# The vacuous-green detector inspects every ready open change rather than only
+# the ones GitHub already reports mergeable, because a change waiting on review
+# is still a change whose tests may never have run.
 # Mergeability GitHub has not computed is reported could-not-verify.
+#
+# A draft change is out of scope: a draft asserts no readiness, so there is no
+# claim for its checks to disagree with, and CI a draft defers on purpose is not
+# a divergence.
+# That exclusion reads only the draft field of the current pull-request
+# observation and remembers nothing, so marking a change ready for review brings
+# it into scope on the very next run.
 # A change whose check runs have not all completed is still executing, so it
 # yields no vacuous result at all.
+# The command deliberately does not guess a verdict from how long a check has
+# been queued, so a slow or stuck queue stays silent rather than being reported
+# as either clean or unverifiable.
+#
 # Once the checks are complete, successful check runs whose names match
 # FM_RECONCILE_TEST_JOB_PATTERN count as real test execution, except names
-# matching FM_RECONCILE_META_JOB_PATTERN.
+# matching FM_RECONCILE_META_JOB_PATTERN or
+# FM_RECONCILE_NOT_APPLICABLE_PATTERN.
 # A successful FM_RECONCILE_NOT_APPLICABLE_PATTERN check is an explicit
-# not-applicable attestation and reconciles.
+# not-applicable attestation and reconciles, so it is classified as an
+# attestation before it could be misread as the test execution it attests did
+# not need to happen.
 # When only a generic FM_RECONCILE_APPLICABILITY_JOB_PATTERN check succeeded,
 # the check-run API cannot prove its decision, so the result is could-not-verify
 # instead of a false divergence.
@@ -474,9 +495,9 @@ discover_branch_prs() {
 
 check_task_pr() {
   local id=$1 repo=$2 pr=$3 worktree=$4 landed=$5 source=$6
-  local merged state mergeable head incomplete green real evaluated not_applicable
+  local merged state draft mergeable head incomplete green real evaluated not_applicable
   api_get "$repo PR #$pr" "/repos/$repo/pulls/$pr" \
-    '{merged,state,mergeable_state,head:{sha:.head.sha}}' || return 0
+    '{merged,state,draft,mergeable_state,head:{sha:.head.sha}}' || return 0
   merged=$(api_jq -r 'if (.merged | type) == "boolean" then .merged else "invalid" end')
   state=$(api_jq -r '.state // "invalid"')
   if [ "$merged" = invalid ] || { [ "$state" != open ] && [ "$state" != closed ]; }; then
@@ -496,6 +517,13 @@ check_task_pr() {
   fi
 
   [ "$state" = open ] || return 0
+  draft=$(api_jq -r 'if (.draft | type) == "boolean" then .draft else "invalid" end')
+  if [ "$draft" = invalid ]; then
+    could_not_verify "vacuous-green scope for $repo PR #$pr" \
+      "GitHub REST omitted whether the change is still a draft"
+    return 0
+  fi
+  [ "$draft" = false ] || return 0
   mergeable=$(api_jq -r '.mergeable_state // "unknown"')
   if [ "$mergeable" = unknown ]; then
     could_not_verify "vacuous-green state for $repo PR #$pr" "GitHub has not computed mergeability"
@@ -519,10 +547,12 @@ check_task_pr() {
   real=$(api_jq \
     --arg real "$TEST_JOB_PATTERN" \
     --arg meta "$META_JOB_PATTERN" \
+    --arg attested "$NOT_APPLICABLE_PATTERN" \
     '[.check_runs[]
       | select(.conclusion == "success")
       | select(.name | test($real; "i"))
       | select((.name | test($meta; "i")) | not)
+      | select((.name | test($attested; "i")) | not)
     ] | length')
   if [ "$green" -gt 0 ] && [ "$real" -eq 0 ]; then
     not_applicable=$(api_jq \
