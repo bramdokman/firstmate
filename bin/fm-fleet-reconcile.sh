@@ -15,6 +15,11 @@
 # The vacuous-green detector treats successful check runs whose names match
 # FM_RECONCILE_TEST_JOB_PATTERN as real test execution, except names matching
 # FM_RECONCILE_META_JOB_PATTERN.
+# A successful FM_RECONCILE_NOT_APPLICABLE_PATTERN check is an explicit
+# not-applicable attestation.
+# When only a generic FM_RECONCILE_APPLICABILITY_JOB_PATTERN check succeeded,
+# the check-run API cannot prove its decision, so the result is could-not-verify
+# instead of a false divergence.
 # Deploy checks inspect the latest FM_RECONCILE_DEPLOY_RUNS successful runs for
 # workflows matching FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN.
 # A selector-only deploy is one completed job matching
@@ -31,6 +36,8 @@
 #   FM_RECONCILE_MAIN_BRANCH             default: main
 #   FM_RECONCILE_TEST_JOB_PATTERN         default: common real-test job names
 #   FM_RECONCILE_META_JOB_PATTERN         default: selector/summary/gate names
+#   FM_RECONCILE_APPLICABILITY_JOB_PATTERN default: change/path detector names
+#   FM_RECONCILE_NOT_APPLICABLE_PATTERN   default: explicit no-tests-needed names
 #   FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN  default: deploy|release
 #   FM_RECONCILE_DEPLOY_SELECTOR_PATTERN  default: selector/candidate/plan names
 #   FM_RECONCILE_DEPLOY_RUNS              default: 5, range: 1..20
@@ -49,8 +56,10 @@ PROJECT_REGISTRY="$DATA/projects.md"
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 
 MAIN_BRANCH=${FM_RECONCILE_MAIN_BRANCH:-main}
-TEST_JOB_PATTERN=${FM_RECONCILE_TEST_JOB_PATTERN:-'integration|db gates|packages|browser|(^|[^[:alnum:]])tests?([^[:alnum:]]|$)|e2e|typecheck.*build'}
+TEST_JOB_PATTERN=${FM_RECONCILE_TEST_JOB_PATTERN:-'integration|db gates|packages|browser|(^|[^[:alnum:]])tests?([^[:alnum:]]|$)|e2e|typecheck.*build|jest|vitest|playwright|cypress|parity|smoke'}
 META_JOB_PATTERN=${FM_RECONCILE_META_JOB_PATTERN:-'selector|summary|aggregate|required check|merge gate|build, test, tenant-isolation gate'}
+APPLICABILITY_JOB_PATTERN=${FM_RECONCILE_APPLICABILITY_JOB_PATTERN:-'detect.*(change|surface|app)|change.*detect|path.*filter|select.*(test|suite|surface|applicab)'}
+NOT_APPLICABLE_PATTERN=${FM_RECONCILE_NOT_APPLICABLE_PATTERN:-'not applicable|docs.only|no tests required|tests skipped by path filter'}
 DEPLOY_WORKFLOW_PATTERN=${FM_RECONCILE_DEPLOY_WORKFLOW_PATTERN:-'deploy|release'}
 DEPLOY_SELECTOR_PATTERN=${FM_RECONCILE_DEPLOY_SELECTOR_PATTERN:-'select|selector|candidate|determine|changes|plan'}
 DEPLOY_RUNS=${FM_RECONCILE_DEPLOY_RUNS:-5}
@@ -410,7 +419,7 @@ discover_branch_prs() {
 
 check_task_pr() {
   local id=$1 repo=$2 pr=$3 worktree=$4 landed=$5 source=$6
-  local merged state mergeable head total returned green real
+  local merged state mergeable head total returned green real evaluated not_applicable
   api_get "$repo PR #$pr" "/repos/$repo/pulls/$pr" \
     '{merged,state,mergeable_state,head:{sha:.head.sha}}' || return 0
   merged=$(printf '%s' "$API_RESULT" | jq -r 'if (.merged | type) == "boolean" then .merged else "invalid" end')
@@ -471,7 +480,25 @@ check_task_pr() {
       | select((.name | test($meta; "i")) | not)
     ] | length')
   if [ "$green" -gt 0 ] && [ "$real" -eq 0 ]; then
-    divergence "$repo PR #$pr reads mergeable with $green successful checks, but zero real test jobs executed"
+    not_applicable=$(printf '%s' "$API_RESULT" | jq \
+      --arg pattern "$NOT_APPLICABLE_PATTERN" \
+      '[.check_runs[]
+        | select(.conclusion == "success")
+        | select(.name | test($pattern; "i"))
+      ] | length')
+    [ "$not_applicable" -eq 0 ] || return 0
+    evaluated=$(printf '%s' "$API_RESULT" | jq \
+      --arg pattern "$APPLICABILITY_JOB_PATTERN" \
+      '[.check_runs[]
+        | select(.conclusion == "success")
+        | select(.name | test($pattern; "i"))
+      ] | length')
+    if [ "$evaluated" -gt 0 ]; then
+      could_not_verify "vacuous-green applicability for $repo PR #$pr" \
+        "an applicability job ran, but check-run names do not attest whether running zero tests was correct"
+    else
+      divergence "$repo PR #$pr reads mergeable with $green successful checks, but zero real test jobs executed and no applicability job evaluated the change"
+    fi
   fi
 }
 
@@ -648,10 +675,14 @@ fi
 if ! printf '' | jq -n \
   --arg real "$TEST_JOB_PATTERN" \
   --arg meta "$META_JOB_PATTERN" \
+  --arg applicability "$APPLICABILITY_JOB_PATTERN" \
+  --arg not_applicable "$NOT_APPLICABLE_PATTERN" \
   --arg deploy "$DEPLOY_WORKFLOW_PATTERN" \
   --arg selector "$DEPLOY_SELECTOR_PATTERN" \
   '("test" | test($real; "i")),
    ("test" | test($meta; "i")),
+   ("test" | test($applicability; "i")),
+   ("test" | test($not_applicable; "i")),
    ("test" | test($deploy; "i")),
    ("test" | test($selector; "i"))' >/dev/null 2>&1; then
   printf 'could not verify configuration: a reconciler pattern is not a valid jq regular expression\n'

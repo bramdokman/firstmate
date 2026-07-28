@@ -35,7 +35,7 @@ fi
 case "$path" in
   /repos/acme/app/pulls/7)
     case "${FM_TEST_SCENARIO:-}" in
-      vacuous|untracked-vacuous)
+      vacuous|untracked-vacuous|not-applicable|attested-not-applicable)
         printf '{"merged":false,"state":"open","mergeable_state":"clean","head":{"sha":"1111111111111111111111111111111111111111"}}\n'
         ;;
       landed-open)
@@ -60,7 +60,17 @@ case "$path" in
     fi
     ;;
   /repos/acme/app/commits/1111111111111111111111111111111111111111/check-runs?per_page=100)
-    printf '{"total_count":2,"check_runs":[{"name":"Required gate summary","conclusion":"success"},{"name":"API integration tests","conclusion":"skipped"}]}\n'
+    case "${FM_TEST_SCENARIO:-}" in
+      not-applicable)
+        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","conclusion":"success"},{"name":"Detect changed surfaces","conclusion":"success"},{"name":"API integration tests","conclusion":"skipped"}]}\n'
+        ;;
+      attested-not-applicable)
+        printf '{"total_count":3,"check_runs":[{"name":"Required gate summary","conclusion":"success"},{"name":"Tests not applicable - docs-only","conclusion":"success"},{"name":"API integration tests","conclusion":"skipped"}]}\n'
+        ;;
+      *)
+        printf '{"total_count":2,"check_runs":[{"name":"Required gate summary","conclusion":"success"},{"name":"API integration tests","conclusion":"skipped"}]}\n'
+        ;;
+    esac
     ;;
   /repos/acme/app/commits/main/check-runs?per_page=100)
     case "${FM_TEST_SCENARIO:-}" in
@@ -154,6 +164,26 @@ test_untracked_open_change_is_checked() {
   pass "open changes are reconciled even when no task record names them yet"
 }
 
+test_applicability_is_not_conflated_with_never_evaluated() {
+  local home fakebin
+  home=$(make_home applicability)
+  fakebin=$(make_fakebin applicability)
+  write_task "$home" "$home/worktree"
+
+  run_reconciler "$home" "$fakebin" not-applicable
+  expect_code 2 "$RUN_RC" "ambiguous applicability"
+  assert_contains "$RUN_OUTPUT" "could not verify vacuous-green applicability" \
+    "a successful detector without an exposed decision must stay explicitly unverified"
+  assert_not_contains "$RUN_OUTPUT" "divergence:" \
+    "a potentially legitimate not-applicable result must not be called a divergence"
+
+  run_reconciler "$home" "$fakebin" attested-not-applicable
+  expect_code 0 "$RUN_RC" "attested not applicable"
+  [ -z "$RUN_OUTPUT" ] \
+    || fail "an explicit successful not-applicable attestation should reconcile: $RUN_OUTPUT"
+  pass "not-applicable and never-evaluated outcomes remain distinct"
+}
+
 test_done_claim_and_merged_copy_diverge() {
   local home fakebin
   home=$(make_home landed)
@@ -239,6 +269,7 @@ test_status_reference_is_not_claimed_as_task_pr() {
 test_clean_is_silent
 test_deliberate_vacuous_green_divergence
 test_untracked_open_change_is_checked
+test_applicability_is_not_conflated_with_never_evaluated
 test_done_claim_and_merged_copy_diverge
 test_selector_only_deploy_and_red_main_diverge
 test_unavailable_and_partial_observations_exit_two
