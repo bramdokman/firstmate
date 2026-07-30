@@ -250,6 +250,45 @@ append_pr_meta_url() {
   printf '%s\n' 'pr=https://github.com/example/repo/pull/7' >> "$case_dir/state/task-x1.meta"
 }
 
+# Override gh-axi/gh so the landed-work check sees merged PR 7 with <head>, AND
+# bin/fm-issue-closure.sh sees a merged PR whose body fixes #7 with #7 still OPEN.
+# This exercises the full post-merge issue-closure path through teardown: the
+# discrepancy report must surface and teardown must still complete.
+add_gh_issue_open_after_merge() {
+  local case_dir=$1 head=$2
+  cat > "$case_dir/fakebin/gh-axi" <<'SH'
+#!/usr/bin/env bash
+case "${1:-} ${2:-}" in
+  "pr list")
+    printf '%s\n' "count: 1 (showing first 1)" "pull_requests[1]{number,state}:" "  7,merged" ; exit 0 ;;
+  "pr view")
+    printf '%s\n' "pull_request:" "  number: 7" "  state: merged" '  merged: "2026-06-26T00:00:00Z"' ; exit 0 ;;
+esac
+exit 0
+SH
+  cat > "$case_dir/fakebin/gh" <<SH
+#!/usr/bin/env bash
+case "\${1:-} \${2:-}" in
+  "pr view")
+    case " \$* " in
+      *"state,headRefOid"*) printf '%s\t%s\n' 'MERGED' '$head' ; exit 0 ;;
+      *"--json state "*) printf '%s\n' 'MERGED' ; exit 0 ;;
+      *"--json body "*) printf '%s\n' 'This fixes #7.' ; exit 0 ;;
+      *"--json closingIssuesReferences"*) exit 0 ;;
+    esac
+    ;;
+  "issue view")
+    case " \$* " in
+      *"view 7 "*) printf '%s\n' 'OPEN' ; exit 0 ;;
+    esac
+    ;;
+esac
+echo "error: pull request not found" >&2
+exit 1
+SH
+  chmod +x "$case_dir/fakebin/gh-axi" "$case_dir/fakebin/gh"
+}
+
 commit_tree_from_wt_head() {
   local case_dir=$1 parent=$2 msg=$3 tree
   tree=$(git -C "$case_dir/wt" rev-parse "$parent^{tree}") || return 1
@@ -1398,6 +1437,59 @@ test_herdr_projection_teardown_retains_journal_when_close_unconfirmed() {
   pass "herdr projection teardown retains the stale journal and attempts no workspace cleanup when exact-pane close is unconfirmed"
 }
 
+# After a merged PR, teardown runs bin/fm-issue-closure.sh to verify the PR's
+# issues actually closed (GitHub silently ignores some closing keywords). The
+# discrepancy report must surface in teardown's output and must never block it.
+test_teardown_surfaces_open_issue_and_does_not_block() {
+  local case_dir rc local_head pr_head
+  case_dir=$(make_case issue-open-after-merge)
+  mkdir -p "$case_dir/data"
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  append_pr_meta_url "$case_dir"
+  local_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  pr_head=$(commit_tree_from_wt_head "$case_dir" "$local_head" "no-mistakes follow-up")
+  add_gh_issue_open_after_merge "$case_dir" "$pr_head"
+
+  set +e
+  FM_DATA_OVERRIDE="$case_dir/data" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "issue-open: teardown must not be blocked by the issue-closure check"
+  ! grep -q REFUSED "$case_dir/stderr" || fail "issue-open: teardown printed a REFUSED line"
+  grep -Fq "issue-closure:" "$case_dir/stdout" \
+    || fail "issue-open: teardown did not surface the issue-closure report in its output"
+  grep -Fq "#7" "$case_dir/stdout" \
+    || fail "issue-open: teardown did not name the still-open issue #7"
+  pass "teardown surfaces an issue a merged PR left open and never blocks on the check"
+}
+
+# An issue-closure lookup failure (gh unavailable / network) must not block or
+# fail teardown; the merge landed correctly and cleanup must proceed.
+test_teardown_issue_closure_lookup_failure_does_not_block() {
+  local case_dir rc local_head pr_head
+  case_dir=$(make_case issue-lookup-fail)
+  mkdir -p "$case_dir/data"
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  append_pr_meta_url "$case_dir"
+  local_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  pr_head=$(commit_tree_from_wt_head "$case_dir" "$local_head" "no-mistakes follow-up")
+  # Merged PR passes the landed-work check; issue-closure's extra gh probes hit
+  # the mock's fallthrough and fail, exercising the never-block guarantee.
+  add_gh_pr_merged_for_head "$case_dir" "$pr_head"
+
+  set +e
+  FM_DATA_OVERRIDE="$case_dir/data" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "issue-lookup-fail: teardown must not be blocked when the issue lookup fails"
+  ! grep -q REFUSED "$case_dir/stderr" || fail "issue-lookup-fail: teardown printed a REFUSED line"
+  pass "teardown is not blocked when the issue-closure lookup itself fails"
+}
+
 test_local_only_fork_remote_allows
 test_teardown_prompts_tasks_axi_done_when_compatible
 test_teardown_manual_backend_prompts_hand_edit_even_when_tasks_axi_present
@@ -1431,3 +1523,5 @@ test_transient_index_lock_clears_after_first_attempt_and_retry_succeeds
 test_persistent_index_lock_exhausts_retries_and_refuses_loudly
 test_empty_retry_wait_uses_default_without_aborting
 test_fractional_legacy_retry_wait_refuses_without_arithmetic_error
+test_teardown_surfaces_open_issue_and_does_not_block
+test_teardown_issue_closure_lookup_failure_does_not_block

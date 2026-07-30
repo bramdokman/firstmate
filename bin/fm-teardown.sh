@@ -1351,5 +1351,16 @@ rm -f "$STATE/$ID.status" "$STATE/$ID.turn-ended" "$STATE/$ID.meta" \
 if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
   "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true
 fi
+# Best-effort: verify a merged PR's issues actually closed. GitHub silently
+# ignores some closing keywords, leaving an issue open after the work lands; this
+# reports any such discrepancy so firstmate can surface it. It never blocks
+# teardown and never auto-closes anything. See bin/fm-issue-closure.sh.
+if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ -n "$PR_URL" ]; then
+  if [ -f "$DATA/$ID/brief.md" ]; then
+    "$FM_ROOT/bin/fm-issue-closure.sh" "$PR_URL" --brief "$DATA/$ID/brief.md" || true
+  else
+    "$FM_ROOT/bin/fm-issue-closure.sh" "$PR_URL" || true
+  fi
+fi
 echo "teardown $ID complete (window $T, worktree $WT)"
 backlog_refresh_reminder
