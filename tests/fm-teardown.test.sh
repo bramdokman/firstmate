@@ -277,11 +277,8 @@ case "\${1:-} \${2:-}" in
       *"--json closingIssuesReferences"*) exit 0 ;;
     esac
     ;;
-  "issue view")
-    case " \$* " in
-      *"view 7 "*) printf '%s\n' 'OPEN' ; exit 0 ;;
-    esac
-    ;;
+  "api repos/example/repo/issues/7")
+    printf '%s\n' 'OPEN' ; exit 0 ;;
 esac
 echo "error: pull request not found" >&2
 exit 1
