@@ -27,6 +27,7 @@
 #   (l) cross-repo reference           -> ignored (not resolved against this repo)
 #   (m) owner/repo#N and full URL form -> same-repo forms are recognized
 #   (n) exit code                      -> always 0 (never blocks teardown)
+#   (o) reference to a PR number       -> silent (issues and PRs share numbers)
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -41,21 +42,14 @@ assert_present "$CLOSURE" "bin/fm-issue-closure.sh is missing"
 PR_URL='https://github.com/example/repo/pull/42'
 REPO_SLASH='example/repo'
 
-# Build a fakebin case dir. Echoes the case dir. The gh mock is written per test
-# via write_gh, which receives a heredoc body on stdin.
+# Build a fakebin case dir. Echoes the case dir. The gh mock is installed per
+# test via gh_data_mock.
 make_case() {
   local name=$1 case_dir fakebin
   case_dir="$TMP_ROOT/$name"
   fakebin="$case_dir/fakebin"
   mkdir -p "$fakebin"
   printf '%s\n' "$case_dir"
-}
-
-# write_gh <case_dir>: read a gh mock body from stdin and install it.
-write_gh() {
-  local case_dir=$1
-  cat > "$case_dir/fakebin/gh"
-  chmod +x "$case_dir/fakebin/gh"
 }
 
 # run_closure <case_dir> [args...]: run the script under the case's fakebin,
@@ -77,7 +71,8 @@ run_closure() {
 #   pr_body     PR body text
 #   pr_refs     newline-separated same-repo closingIssuesReferences numbers
 #   fail        any content -> gh always exits 1 (lookup failure)
-#   issue_<n>   state for issue #<n> (OPEN/CLOSED); absent -> lookup fails
+#   issue_<n>   state for issue #<n> (OPEN/CLOSED, or pull-request when #<n>
+#               is actually a PR); absent -> lookup fails
 gh_data_mock() {
   local case_dir=$1
   mkdir -p "$case_dir/data"
@@ -100,14 +95,11 @@ case "${1:-} ${2:-}" in
         exit 0 ;;
     esac
     ;;
-  "issue view")
-    n=
-    for a in "$@"; do
-      case "$a" in
-        [0-9]*) n=$a; break ;;
-      esac
-    done
-    [ -n "$n" ] || exit 1
+  "api repos/"*"/issues/"*)
+    n="${2##*/}"
+    case "$n" in
+      ''|*[!0-9]*) exit 1 ;;
+    esac
     if [ -f "$D/issue_$n" ]; then
       printf '%s\n' "$(cat "$D/issue_$n")"
       exit 0
@@ -305,6 +297,19 @@ test_ownerrepo_and_url_forms_recognized() {
   pass "owner/repo#N and full issue-URL closing references are recognized"
 }
 
+test_pr_number_reference_is_silent() {
+  local case_dir
+  case_dir=$(make_case pr-number-ref)
+  gh_data_mock "$case_dir"
+  printf 'This fixes #50.\n' > "$case_dir/data/pr_body"
+  printf 'pull-request\n' > "$case_dir/data/issue_50"
+  run_closure "$case_dir" "$PR_URL"
+  expect_code 0 "$RC" "pr-number-ref: exit must be 0"
+  [ -z "$OUT" ] || fail "pr-number-ref: #50 is a PR, not an issue; expected silence, got: $OUT"
+  [ -z "$ERR" ] || fail "pr-number-ref: a PR-numbered candidate must be skipped silently, got: $ERR"
+  pass "a closing reference to a PR number is not reported as an open issue"
+}
+
 test_malformed_url_exits_zero() {
   local case_dir
   case_dir=$(make_case bad-url)
@@ -341,5 +346,6 @@ test_gitlab_is_silent
 test_word_boundary_rejects_prose
 test_cross_repo_reference_ignored
 test_ownerrepo_and_url_forms_recognized
+test_pr_number_reference_is_silent
 test_malformed_url_exits_zero
 test_exit_zero_on_discrepancy

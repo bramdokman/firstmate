@@ -25,6 +25,8 @@
 #     GitHub linked from commit messages even when the PR body is bare.
 #   - the task brief (--brief <path>), parsed with the same grammar, as a fallback
 #     for work whose PR body carried no parseable reference at all.
+# Issues and pull requests share one number space, so a candidate that resolves
+# to a pull request is skipped silently: it is not an issue to verify.
 # Usage: fm-issue-closure.sh <pr-url> [--brief <brief-path>]
 set -u
 
@@ -133,7 +135,8 @@ main() {
 
   while IFS= read -r n; do
     [ -n "$n" ] || continue
-    if ! state=$(gh issue view "$n" -R "$REPO_SLASH" --json state -q .state 2>/dev/null); then
+    if ! state=$(gh api "repos/$REPO_SLASH/issues/$n" \
+      -q 'if .pull_request then "pull-request" else (.state | ascii_upcase) end' 2>/dev/null); then
       echo "issue-closure: could not verify state of issue #$n for $PR_URL (gh lookup failed); the merge is unaffected." >&2
       continue
     fi
