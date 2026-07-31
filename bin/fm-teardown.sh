@@ -525,11 +525,14 @@ head_is_on_remote_branch() {
     case "$rc" in
       0)
         [ "$sha" = "$current" ] && return 0
-        if git -C "$WT" cat-file -e "$sha^{commit}" 2>/dev/null \
-          && git -C "$WT" merge-base --is-ancestor "$current" "$sha" 2>/dev/null; then
-          return 0
+        if git -C "$WT" cat-file -e "$sha^{commit}" 2>/dev/null; then
+          if git -C "$WT" merge-base --is-ancestor "$current" "$sha" 2>/dev/null; then
+            return 0
+          fi
+          landed_note "$remote holds $branch at ${sha:0:12}, which does not contain the local commits"
+        else
+          landed_note "$remote holds $branch at ${sha:0:12}, which is not available locally, so containment of the local commits could not be verified"
         fi
-        landed_note "$remote holds $branch at ${sha:0:12}, which does not contain the local commits"
         ;;
       2)
         landed_note "$remote has no branch named $branch"
@@ -568,12 +571,12 @@ branch_paths_match_ref() {
     landed_note "this branch shares no history with $label, so its changes could not be compared against it"
     return 1
   }
-  paths=$(git -C "$WT" -c core.quotePath=true diff --name-only "$base" HEAD -- 2>/dev/null) || {
+  paths=$(git -C "$WT" -c core.quotePath=true diff --no-renames --name-only "$base" HEAD -- 2>/dev/null) || {
     landed_note "could not list the files this branch changed, so nothing could be compared against $label"
     return 1
   }
   if [ -n "$ref_from" ]; then
-    ref_paths=$(git -C "$WT" -c core.quotePath=true diff --name-only "$ref_from" "$ref" -- 2>/dev/null) || {
+    ref_paths=$(git -C "$WT" -c core.quotePath=true diff --no-renames --name-only "$ref_from" "$ref" -- 2>/dev/null) || {
       landed_note "could not list the files $label changed, so nothing could be compared against it"
       return 1
     }
@@ -594,7 +597,7 @@ $paths
 EOF
   [ "${#changed[@]}" -gt 0 ] || return 1
   set +e
-  leftover=$(git -C "$WT" -c core.quotePath=true diff --name-only --no-ext-diff \
+  leftover=$(git -C "$WT" -c core.quotePath=true diff --no-renames --name-only --no-ext-diff \
     "$ref" HEAD -- "${changed[@]}" 2>/dev/null)
   rc=$?
   set -e
@@ -767,11 +770,10 @@ content_in_default() {
   local ref default_tree merged_tree
   resolve_default_branch_ref || return 1
   ref=$TEARDOWN_DEFAULT_REF
-  default_tree=$(git -C "$WT" rev-parse --quiet --verify "$ref^{tree}" 2>/dev/null) || return 1
-  if [ -z "$default_tree" ]; then
+  default_tree=$(git -C "$WT" rev-parse --quiet --verify "$ref^{tree}" 2>/dev/null) || {
     landed_note "the default branch ref $ref could not be read"
     return 1
-  fi
+  }
   if merged_tree=$(git -C "$WT" merge-tree --write-tree "$ref" HEAD 2>/dev/null); then
     merged_tree=$(printf '%s\n' "$merged_tree" | head -1)
     [ "$merged_tree" = "$default_tree" ] && return 0

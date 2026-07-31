@@ -51,6 +51,7 @@
 #   (z6) merge commit without the branch's change               -> REFUSE (safety)
 #   (z7) git too old for merge-tree --write-tree, files match   -> ALLOW  (file fallback)
 #   (z8) git too old for merge-tree --write-tree, unlanded work -> REFUSE (safety)
+#   (z9) unpushed deletion hidden by git rename detection       -> REFUSE (safety)
 #
 # Also covers backlog teardown-lock-race: a git index.lock left in the worktree by a
 # killed crew process (bin/fm-teardown.sh's teardown_treehouse_return).
@@ -1717,6 +1718,43 @@ test_merge_commit_without_branch_change_refuses() {
   pass "work absent from the PR's merge commit is still refused (safety preserved)"
 }
 
+# git's rename detection can fold an unpushed deletion out of the path set: the
+# branch adds B.txt as a copy of pre-existing A.txt, the squash merge commit
+# contributes B.txt, and an unpushed local commit deletes A.txt. A rename-paired
+# diff lists only B.txt, so a comparison built from it would call the deletion
+# landed and discard it. The path sets must be collected without rename pairing.
+test_unpushed_delete_hidden_by_rename_detection_refuses() {
+  local case_dir rc merge_sha
+  case_dir=$(make_case rename-hidden-delete)
+  write_meta "$case_dir" no-mistakes ship
+  # A.txt pre-exists on the shared base: commit it on the branch and push it to
+  # origin main, so the branch's own work starts after it.
+  wt_commit_file "$case_dir" A.txt hello "add A"
+  git -C "$case_dir/wt" push -q origin HEAD:main
+  wt_commit_file "$case_dir" B.txt hello "add B as a copy of A"
+  append_pr_meta_url "$case_dir"
+  # The squash merge lands only B.txt on origin main.
+  land_on_origin_main "$case_dir" B.txt hello
+  merge_sha=$(git -C "$case_dir/project" ls-remote origin main | awk 'NF { print $1; exit }')
+  # The unpushed work at stake: deleting A.txt. Rename detection pairs this
+  # deletion with the B.txt addition and hides A.txt from a rename-aware diff.
+  git -C "$case_dir/wt" rm -q -- A.txt
+  git -C "$case_dir/wt" -c user.email=t@t -c user.name=t commit -q -m "delete A"
+  add_gh_pr_merged_with_merge_commit "$case_dir" \
+    0000000000000000000000000000000000000000 "$merge_sha"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "rename-hidden-delete: teardown must refuse an unpushed deletion rename-paired with the branch's addition"
+  assert_grep "REFUSED" "$case_dir/stderr" "rename-hidden-delete: no REFUSED line in stderr"
+  assert_grep "file(s) the branch changed: A.txt" "$case_dir/stderr" \
+    "rename-hidden-delete: refusal did not name the deleted file"
+  pass "an unpushed deletion hidden by rename detection is still refused (safety preserved)"
+}
+
 # On a git too old for `merge-tree --write-tree`, the whole-tree comparison cannot
 # run at all. That is a tool that could not answer, not proof of unlanded work, so
 # the file-by-file comparison must still recognize squash-landed content.
@@ -1821,6 +1859,7 @@ test_unreachable_remote_refuses_and_names_the_lookup
 test_squash_merged_pr_allows_via_merge_commit
 test_unpushed_revert_of_merged_work_refuses
 test_merge_commit_without_branch_change_refuses
+test_unpushed_delete_hidden_by_rename_detection_refuses
 test_content_fallback_without_merge_tree_write_tree_allows
 test_content_fallback_without_merge_tree_write_tree_still_refuses_unlanded
 test_teardown_surfaces_open_issue_and_does_not_block
