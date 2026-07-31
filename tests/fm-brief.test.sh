@@ -251,7 +251,7 @@ test_pr_modes_require_a_real_pr_and_genuinely_run_checks() {
     id=${id_proj%%:*}
     FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" "${id_proj##*:}" >/dev/null 2>&1
     brief="$home/data/$id/brief.md"
-    assert_grep "Neither half of done may be inferred from the absence of a failure." "$brief" \
+    assert_grep "Neither half of the delivery report - the done line that names a PR - may be inferred from the absence of a failure." "$brief" \
       "$id: PR-based brief lost the absence-of-failure gate"
     assert_grep "A PR must exist and you must have its real URL." "$brief" \
       "$id: PR-based brief did not require a real PR URL"
@@ -273,7 +273,7 @@ test_pr_modes_require_a_real_pr_and_genuinely_run_checks() {
   # a missing PR is a blocker, never a done report.
   brief="$home/data/brief-done-evidence-dp/brief.md"
   # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
-  assert_grep 'if there is no PR you are not done, so append `blocked: {what is actually true}` instead' \
+  assert_grep 'never claim delivery without one: if the report should name a PR and none exists, append `blocked: {what is actually true}` instead' \
     "$brief" "direct-PR brief turned a missing PR into something other than a blocker"
   assert_grep 'Committing is not delivering: the task is complete only when a PR exists for your branch.' \
     "$brief" "direct-PR brief lost its PR-is-completion statement"
@@ -292,6 +292,40 @@ test_pr_modes_require_a_real_pr_and_genuinely_run_checks() {
   pass "fm-brief.sh: PR-based modes require a real PR and checks that actually ran"
 }
 
+# The evidence gate governs only the delivery report that names a PR. The
+# no-mistakes Stage 1 handoff has no PR by design and is reported as
+# `done: {summary}` at a local commit; an unscoped gate ("if there is no PR you
+# are not done") let a literal reader route that legitimate handoff to a false
+# `blocked:` and stall the flow.
+test_no_mistakes_handoff_is_outside_the_delivery_gate() {
+  local home brief
+  home="$TMP_ROOT/handoff-scope-home"
+  write_registry "$home"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-handoff-scope no-registry-proj >/dev/null 2>&1
+  brief="$home/data/brief-handoff-scope/brief.md"
+
+  # The no-PR handoff is still instructed exactly as before: commit, report,
+  # stop.
+  assert_grep "Stage 1 - the implementation is complete when committed on your branch." "$brief" \
+    "no-mistakes brief lost the Stage 1 commit handoff"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'When you believe it is complete, append `done: {summary}` to the status file and stop.' "$brief" \
+    "no-mistakes brief no longer instructs the Stage 1 handoff report"
+  # The gate names its own scope, so the PR-less handoff can neither satisfy
+  # nor violate it.
+  assert_grep "the done line that names a PR" "$brief" \
+    "no-mistakes brief's evidence gate is not scoped to the PR-naming delivery report"
+  assert_no_grep "if there is no PR you are not done" "$brief" \
+    "no-mistakes brief reads every no-PR done report as a violation, turning the Stage 1 handoff into a false blocker"
+  assert_no_grep "Neither half of done may be inferred" "$brief" \
+    "no-mistakes brief still carries the unscoped gate opening"
+  # A missing PR at delivery still routes to blocked, never to a done report.
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'append `blocked: {what is actually true}` instead' "$brief" \
+    "no-mistakes brief lost the blocked routing for a missing PR at delivery"
+  pass "fm-brief.sh: no-mistakes Stage 1 handoff sits outside the delivery evidence gate"
+}
+
 # local-only has no PR by definition, so the PR-based evidence gate must not be
 # imposed on it: a requirement it cannot satisfy would be unfollowable.
 test_local_only_keeps_its_no_pr_contract() {
@@ -303,7 +337,7 @@ test_local_only_keeps_its_no_pr_contract() {
 
   assert_no_grep "A PR must exist" "$brief" \
     "local-only brief was given a PR requirement it cannot satisfy"
-  assert_no_grep "Neither half of done" "$brief" \
+  assert_no_grep "Neither half of the delivery report" "$brief" \
     "local-only brief inherited the PR-based evidence gate"
   assert_no_grep "checks green" "$brief" \
     "local-only brief was given a CI-green requirement it has no CI for"
@@ -739,6 +773,7 @@ test_help_includes_entire_header
 test_ship_modes_generate_clean_briefs
 test_faster_paths_use_configured_authority_without_stacked_review
 test_pr_modes_require_a_real_pr_and_genuinely_run_checks
+test_no_mistakes_handoff_is_outside_the_delivery_gate
 test_local_only_keeps_its_no_pr_contract
 test_ship_safety_clauses_survive_in_every_mode
 test_no_mistakes_dod_wording

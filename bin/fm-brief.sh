@@ -33,7 +33,7 @@
 #   direct-PR    implement -> push + open PR via gh-axi (no pipeline) -> captain merge
 #   local-only   implement on branch, stop and report "ready in branch" (no push/PR);
 #                captain approves, firstmate merges to local main
-# Both PR-based modes carry an evidence gate on the done report, because workers
+# Both PR-based modes carry an evidence gate on the delivery report, because workers
 # repeatedly read the absence of a visible failure as success: a real PR URL must
 # exist, and "checks green" may describe only checks that actually ran and passed.
 # local-only has no PR by definition and carries no part of that gate.
@@ -309,12 +309,14 @@ EOF
 # Evidence gate for the PR-based modes. Measured failure: workers on every
 # harness reported "done: committed <sha>" with no PR, and "checks green" on a
 # fork PR whose workflow runs sat at action_required so nothing had run at all.
-# Both read the absence of a visible failure as success, so the done report has
-# to name the positive evidence each half requires. local-only never gets this:
-# it has no PR by definition.
+# Both read the absence of a visible failure as success, so the delivery report
+# has to name the positive evidence each half requires. The gate governs only
+# the done line that names a PR: the no-mistakes Stage 1 handoff has no PR by
+# design and must not read it as a blocker. local-only never gets the gate at
+# all: it has no PR by definition.
 IFS= read -r -d '' DONE_EVIDENCE <<'EOF' || true
-**Neither half of done may be inferred from the absence of a failure.**
-1. A PR must exist and you must have its real URL. A commit, or even a pushed branch, is not a delivered PR - if there is no PR you are not done, so append `blocked: {what is actually true}` instead.
+**Neither half of the delivery report - the done line that names a PR - may be inferred from the absence of a failure.**
+1. A PR must exist and you must have its real URL. A commit, or even a pushed branch, is not a delivered PR - never claim delivery without one: if the report should name a PR and none exists, append `blocked: {what is actually true}` instead.
 2. `checks green` may describe only checks that actually ran and passed. `gh pr checks <number>` printing nothing, reporting no checks, or listing only skipped, queued, or pending runs is NOT green - a fork PR awaiting approval sits at `action_required` and runs nothing. If nothing ran, never write `checks green`: report what you actually see and let firstmate decide.
 EOF
 DONE_EVIDENCE=${DONE_EVIDENCE%$'\n'}
