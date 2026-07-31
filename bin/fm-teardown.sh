@@ -9,12 +9,27 @@
 # REFUSES if the worktree holds work that has not LANDED, because cleanup
 # hard-resets/removes the worktree and kills its processes. Work has landed when it is
 # reachable from any remote-tracking branch (a fork counts as a remote, so
-# upstream-contribution PRs pushed to a fork satisfy this in any mode), OR - for a
+# upstream-contribution PRs pushed to a fork satisfy this in any mode), OR the remote
+# itself reports a branch of the same name containing the local commits, OR - for a
 # normal ship task whose commits are not so reachable - when its PR is merged and
-# GitHub reports a PR head that contains the current local work, or its content is
+# GitHub reports a PR that contains the current local work, or its content is
 # already present in the up-to-date default branch. This recognizes the common
 # squash-merge-then-delete-branch flow, where the branch's own commits live nowhere
 # on a remote yet the change is fully in main.
+# A worktree may hold NO remote-tracking ref for its own branch (a fresh clone, a
+# pruned ref, a worktree that never fetched), and then the local ahead-of-remote
+# comparison has nothing to compare against and reads every commit as unpushed.
+# That is absence of evidence, not evidence of absence, so the remotes are asked
+# directly with `git ls-remote` - a read-only lookup that writes nothing to the
+# worktree, unlike the fetch that would otherwise be needed. A lookup that cannot
+# complete is recorded as unknown and never read as "safe to discard".
+# Commit identity is likewise never the only test against a merged PR: a squash
+# merge rewrites the branch's commits into one, so no local hash exists on the base
+# even though every change does. When hash and patch-id comparisons come up empty,
+# the FILES the branch changed are compared against the PR head and against the
+# PR's own merge commit, and a 3-way merge against the default branch that
+# conflicts falls through to the same file-by-file comparison instead of being
+# read as unlanded work.
 # The PR itself is resolved from the task's recorded pr= when present, or - when
 # no pr= was ever recorded (e.g. a yolo-authorized merge on a repo with no PR CI,
 # where the usual "checks green" fm-pr-check.sh trigger never fires) - by looking
@@ -22,7 +37,13 @@
 # via refs/pull/<n>/head when the branch itself was deleted. So a missing pr= never
 # by itself causes a false refusal of landed work.
 # A gh lookup error falls back to the content check; if that is also inconclusive,
-# teardown refuses rather than risk discarding unlanded work.
+# teardown refuses rather than risk discarding unlanded work. Every refusal names
+# the evidence sources that could not settle the question - an unreachable remote,
+# a failed PR lookup, an unavailable merge commit, files left over - so an operator
+# can verify the named gap instead of reaching for --force.
+# Each remote branch lookup is bounded by FM_LS_REMOTE_TIMEOUT_SECS (default 30)
+# when a timeout command is available, and never prompts for credentials; a lookup
+# that times out is an unestablished fact like any other failure.
 # Uncommitted changes are never landed.
 # local-only projects additionally accept work merged into the local default
 # branch (firstmate performs that merge after configured approval) as a fallback
@@ -413,6 +434,182 @@ ensure_commit_object() {
   git -C "$WT" cat-file -e "$commit^{commit}" 2>/dev/null
 }
 
+# Notes explaining exactly which evidence source could not confirm the work is
+# safe to discard. Printed with the refusal so an operator can verify the named
+# gap instead of reaching for --force.
+LANDED_EVIDENCE=()
+
+landed_note() {
+  LANDED_EVIDENCE+=("$1")
+}
+
+landed_evidence_print() {
+  local note
+  [ "${#LANDED_EVIDENCE[@]}" -gt 0 ] || return 0
+  echo "could not confirm the work landed:" >&2
+  for note in "${LANDED_EVIDENCE[@]}"; do
+    printf '  - %s\n' "$note" >&2
+  done
+}
+
+worktree_branch_for_safety() {
+  git -C "$WT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD
+}
+
+# Ask a remote what it actually holds for a branch. `git ls-remote` reads the
+# remote over the wire and writes nothing to the repository - no fetch, no ref
+# update - so it is the one authoritative remote lookup teardown may run inside a
+# project worktree. Echoes the branch's remote sha and returns 0 when the remote
+# has it, 2 when the remote authoritatively has no such branch, and 3 when the
+# lookup itself could not complete (offline, auth, forge down). 3 is never read as
+# "not pushed": the caller reports it as an unestablished fact.
+LS_REMOTE_TIMEOUT_SECS=${FM_LS_REMOTE_TIMEOUT_SECS:-30}
+
+ls_remote_branch_sha() {
+  local remote=$1 branch=$2 out rc runner=
+  if command -v timeout >/dev/null 2>&1; then
+    runner=timeout
+  elif command -v gtimeout >/dev/null 2>&1; then
+    runner=gtimeout
+  fi
+  set +e
+  if [ -n "$runner" ]; then
+    out=$(GIT_TERMINAL_PROMPT=0 "$runner" "$LS_REMOTE_TIMEOUT_SECS" \
+      git -C "$WT" ls-remote --exit-code --heads "$remote" "refs/heads/$branch" 2>/dev/null </dev/null)
+  else
+    out=$(GIT_TERMINAL_PROMPT=0 \
+      git -C "$WT" ls-remote --exit-code --heads "$remote" "refs/heads/$branch" 2>/dev/null </dev/null)
+  fi
+  rc=$?
+  set -e
+  case "$rc" in
+    0) ;;
+    2) return 2 ;;
+    *) return 3 ;;
+  esac
+  out=$(printf '%s\n' "$out" | awk 'NF { print $1; exit }')
+  [ -n "$out" ] || return 3
+  printf '%s\n' "$out"
+}
+
+# Configured remotes, origin first so the usual answer costs one lookup.
+worktree_remotes_origin_first() {
+  git -C "$WT" remote 2>/dev/null | grep -x origin || true
+  git -C "$WT" remote 2>/dev/null | grep -vx origin || true
+}
+
+# Are the worktree's commits already on a remote branch of the same name? A
+# worktree can hold ZERO remote-tracking refs for its own branch - a fresh clone,
+# a pruned ref, a worktree that never fetched - and then the local
+# ahead-of-remote comparison has nothing to compare against and reads every
+# commit as unpushed. Absence of a local ref is absence of evidence, so ask the
+# remotes themselves. Returns 0 only on positive proof; every other outcome
+# records why it could not be established and returns non-zero.
+head_is_on_remote_branch() {
+  local branch=$1 current remote sha rc checked=0
+  current=$(git -C "$WT" rev-parse --verify HEAD 2>/dev/null) || {
+    landed_note "the worktree's current commit could not be read, so it could not be compared with any remote"
+    return 1
+  }
+  if [ -z "$branch" ] || [ "$branch" = HEAD ]; then
+    landed_note "the worktree is on a detached HEAD, so there is no branch name to look up on the remote"
+    return 1
+  fi
+  while IFS= read -r remote; do
+    [ -n "$remote" ] || continue
+    checked=1
+    set +e
+    sha=$(ls_remote_branch_sha "$remote" "$branch")
+    rc=$?
+    set -e
+    case "$rc" in
+      0)
+        [ "$sha" = "$current" ] && return 0
+        if git -C "$WT" cat-file -e "$sha^{commit}" 2>/dev/null \
+          && git -C "$WT" merge-base --is-ancestor "$current" "$sha" 2>/dev/null; then
+          return 0
+        fi
+        landed_note "$remote holds $branch at ${sha:0:12}, which does not contain the local commits"
+        ;;
+      2)
+        landed_note "$remote has no branch named $branch"
+        ;;
+      *)
+        landed_note "could not reach $remote to check whether $branch is pushed (git ls-remote failed or timed out); this is unknown, not proof the work is unpushed"
+        ;;
+    esac
+  done <<EOF
+$(worktree_remotes_origin_first)
+EOF
+  [ "$checked" -eq 1 ] || landed_note "the worktree has no git remote configured, so the branch could not be checked against one"
+  return 1
+}
+
+# Are the files at stake already byte-identical at <ref>? This is the content
+# question a hash comparison cannot answer: a squash merge rewrites N commits into
+# one, so none of the branch's commit hashes exist at <ref> even though every
+# change does. Comparing the FILES settles it, and unlike a 3-way merge it cannot
+# come back "conflicted" and therefore inconclusive.
+#
+# branch_paths_match_ref <ref> <ref-contribution-from> <label>
+#
+# The files at stake are the ones this branch changed, plus - when
+# <ref-contribution-from> is given - the ones <ref> itself contributed, measured
+# from that revision. Both sides are needed: a local commit that REVERTS work the
+# ref still carries touches no file relative to the branch's own base, so
+# comparing only the branch's files would call that revert landed and discard it.
+# Pass an empty <ref-contribution-from> only where the ref's own motion is not
+# this task's work, as for the default branch.
+# Returns 0 only when nothing at stake is left over.
+branch_paths_match_ref() {
+  local ref=$1 ref_from=$2 label=$3 base paths ref_paths path rc leftover count shown
+  local -a changed=()
+  base=$(git -C "$WT" merge-base HEAD "$ref" 2>/dev/null) || {
+    landed_note "this branch shares no history with $label, so its changes could not be compared against it"
+    return 1
+  }
+  paths=$(git -C "$WT" -c core.quotePath=true diff --name-only "$base" HEAD -- 2>/dev/null) || {
+    landed_note "could not list the files this branch changed, so nothing could be compared against $label"
+    return 1
+  }
+  if [ -n "$ref_from" ]; then
+    ref_paths=$(git -C "$WT" -c core.quotePath=true diff --name-only "$ref_from" "$ref" -- 2>/dev/null) || {
+      landed_note "could not list the files $label changed, so nothing could be compared against it"
+      return 1
+    }
+    paths=$(printf '%s\n%s\n' "$paths" "$ref_paths" | sed '/^$/d' | sort -u)
+  fi
+  if [ -z "$paths" ]; then
+    landed_note "this branch changes no files relative to $label, so a file-by-file comparison had nothing to check"
+    return 1
+  fi
+  if printf '%s\n' "$paths" | grep -q '^"'; then
+    landed_note "a file whose name git had to quote is at stake, so a file-by-file comparison against $label could not be trusted"
+    return 1
+  fi
+  while IFS= read -r path; do
+    [ -n "$path" ] && changed+=("$path")
+  done <<EOF
+$paths
+EOF
+  [ "${#changed[@]}" -gt 0 ] || return 1
+  set +e
+  leftover=$(git -C "$WT" -c core.quotePath=true diff --name-only --no-ext-diff \
+    "$ref" HEAD -- "${changed[@]}" 2>/dev/null)
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    landed_note "comparing the files at stake against $label failed to run"
+    return 1
+  fi
+  [ -n "$leftover" ] || return 0
+  count=$(printf '%s\n' "$leftover" | grep -c . || true)
+  shown=$(printf '%s\n' "$leftover" | head -5 | tr '\n' ' ')
+  [ "$count" -le 5 ] || shown="$shown(and $((count - 5)) more) "
+  landed_note "$label does not match this branch in $count file(s) the branch changed: ${shown% }"
+  return 1
+}
+
 patch_id_for_commit() {
   local commit=$1
   git -C "$WT" show --pretty=medium --no-ext-diff "$commit" 2>/dev/null \
@@ -447,30 +644,115 @@ EOF
 
 # Is the worktree's PR merged for local work contained in that PR? Resolves the
 # PR from the recorded pr= URL first, then from the branch name, and asks GitHub
-# for both the PR state and head. Returns non-zero when the PR is not merged, the
-# current work is not contained in the PR head, no PR is found, or any gh error
-# occurs - the caller then falls back to the content check.
+# for the PR state, head, and merge commit. Returns non-zero when the PR is not
+# merged, the current work is not contained in the PR, no PR is found, or any gh
+# error occurs - the caller then falls back to the content check.
+# Commit identity is only the first test. A squash merge rewrites the branch's
+# commits into one, so hash and per-commit patch-id comparisons can report work
+# "missing" that is entirely present; the changed FILES are then compared against
+# the PR head and against the PR's own merge commit, which is where a squashed
+# branch's content actually lives.
 pr_is_merged() {
-  local branch=$1 target view state head current
+  local branch=$1 target view state head merge_sha rest current head_base
   if [ -n "$PR_URL" ]; then
     target=$PR_URL
   else
-    target=$(pr_number_from_branch "$branch") || return 1
+    target=$(pr_number_from_branch "$branch") || {
+      landed_note "no pull request could be found for branch $branch"
+      return 1
+    }
   fi
   [ -n "$target" ] || return 1
-  view=$(cd "$WT" && gh pr view "$target" --json state,headRefOid -q '.state + "\t" + .headRefOid' 2>/dev/null) || return 1
+  view=$(cd "$WT" && gh pr view "$target" \
+    --json state,headRefOid,mergeCommit \
+    -q '.state + "\t" + .headRefOid + "\t" + (.mergeCommit.oid // "")' 2>/dev/null) || {
+    landed_note "the pull request lookup for $target failed, so its merge state is unknown"
+    return 1
+  }
   state=${view%%$'\t'*}
-  head=${view#*$'\t'}
-  [ "$state" != "$view" ] || return 1
+  rest=${view#*$'\t'}
+  [ "$state" != "$view" ] || {
+    landed_note "the pull request lookup for $target returned an unreadable answer"
+    return 1
+  }
+  head=${rest%%$'\t'*}
+  merge_sha=${rest#*$'\t'}
+  [ "$head" != "$rest" ] || merge_sha=
   case "$state" in
     MERGED|merged) ;;
-    *) return 1 ;;
+    *)
+      landed_note "pull request $target is $state, not merged"
+      return 1
+      ;;
   esac
-  [ -n "$head" ] || return 1
-  ensure_commit_object "$target" "$head" || return 1
   current=$(git -C "$WT" rev-parse --verify HEAD 2>/dev/null) || return 1
-  git -C "$WT" merge-base --is-ancestor "$current" "$head" 2>/dev/null && return 0
-  unpushed_patches_are_in_pr_head "$head"
+  if [ -n "$head" ] && ensure_commit_object "$target" "$head"; then
+    git -C "$WT" merge-base --is-ancestor "$current" "$head" 2>/dev/null && return 0
+    unpushed_patches_are_in_pr_head "$head" && return 0
+    head_base=$(git -C "$WT" merge-base "$current" "$head" 2>/dev/null) || head_base=
+    [ -n "$head_base" ] \
+      && branch_paths_match_ref "$head" "$head_base" "the merged pull request $target" \
+      && return 0
+  else
+    landed_note "the head commit of merged pull request $target could not be retrieved, so the local commits could not be compared against it"
+  fi
+  merged_commit_contains_branch_change "$target" "$merge_sha"
+}
+
+# A squash merge lands the whole branch as one new commit on the base. That merge
+# commit is the authoritative record of what the PR actually merged, so compare
+# the files against it. Reached only after commit-identity tests have failed,
+# which is exactly the squash case. What the merge commit contributed is measured
+# against its own parent, not against the branch's base: the base branch keeps
+# moving between a PR opening and merging, and that motion is not this task's work.
+merged_commit_contains_branch_change() {
+  local target=$1 merge_sha=$2 merge_parent
+  if [ -z "$merge_sha" ]; then
+    landed_note "merged pull request $target reports no merge commit, so its merged content could not be compared"
+    return 1
+  fi
+  if ! git -C "$WT" cat-file -e "$merge_sha^{commit}" 2>/dev/null; then
+    # The merge commit sits on the default branch; refreshing that ref is the
+    # same read the content fallback performs, and it happens at most once.
+    resolve_default_branch_ref || return 1
+    git -C "$WT" cat-file -e "$merge_sha^{commit}" 2>/dev/null || {
+      landed_note "the merge commit ${merge_sha:0:12} of pull request $target is not available locally, so its merged content could not be compared"
+      return 1
+    }
+  fi
+  merge_parent=$(git -C "$WT" rev-parse --quiet --verify "$merge_sha^{commit}^" 2>/dev/null) || merge_parent=
+  if [ -z "$merge_parent" ]; then
+    landed_note "the merge commit ${merge_sha:0:12} of pull request $target has no parent to measure what it merged"
+    return 1
+  fi
+  branch_paths_match_ref "$merge_sha" "$merge_parent" \
+    "the merge commit ${merge_sha:0:12} of pull request $target"
+}
+
+# Resolves the ref naming the up-to-date default branch into TEARDOWN_DEFAULT_REF,
+# refreshing it from origin once per run. Returns non-zero, with the reason
+# recorded, when the default branch cannot be established - a refresh that cannot
+# complete is an unknown state, never a silent pass.
+TEARDOWN_DEFAULT_REF=
+resolve_default_branch_ref() {
+  local name
+  [ -z "$TEARDOWN_DEFAULT_REF" ] || return 0
+  name=$(default_branch) || {
+    landed_note "the project's default branch could not be determined (expected origin/HEAD, main, or master), so the content check could not run"
+    return 1
+  }
+  if git -C "$WT" remote get-url origin >/dev/null 2>&1; then
+    git -C "$WT" fetch --quiet origin "+refs/heads/$name:refs/remotes/origin/$name" >/dev/null 2>&1 || {
+      landed_note "origin/$name could not be refreshed, so whether the work is already on the default branch is unknown"
+      return 1
+    }
+    TEARDOWN_DEFAULT_REF="refs/remotes/origin/$name"
+  elif git -C "$WT" rev-parse --quiet --verify "refs/heads/$name" >/dev/null 2>&1; then
+    TEARDOWN_DEFAULT_REF="refs/heads/$name"
+  else
+    landed_note "there is no origin remote and no local $name branch to compare the work against"
+    return 1
+  fi
 }
 
 # Is the branch's content already present in the up-to-date default branch? Fetches
@@ -478,31 +760,36 @@ pr_is_merged() {
 # the default branch does not already contain (e.g. its change landed via squash) the
 # merged tree equals the default branch's tree. This isolates branch-only changes, so
 # unrelated commits the default branch gained past the merge-base do not count as
-# "added". Returns non-zero when inconclusive (no default ref, or a merge conflict),
-# so the caller refuses rather than guesses.
+# "added". A merge that conflicts proves nothing either way, so it falls through to
+# the file-by-file comparison rather than being read as unlanded work. Returns
+# non-zero when still inconclusive, so the caller refuses rather than guesses.
 content_in_default() {
-  local name ref default_tree merged_tree
-  name=$(default_branch) || return 1
-  if git -C "$WT" remote get-url origin >/dev/null 2>&1; then
-    git -C "$WT" fetch --quiet origin "+refs/heads/$name:refs/remotes/origin/$name" >/dev/null 2>&1 || return 1
-    ref="refs/remotes/origin/$name"
-  elif git -C "$WT" rev-parse --quiet --verify "refs/heads/$name" >/dev/null 2>&1; then
-    ref="refs/heads/$name"
-  else
+  local ref default_tree merged_tree
+  resolve_default_branch_ref || return 1
+  ref=$TEARDOWN_DEFAULT_REF
+  default_tree=$(git -C "$WT" rev-parse --quiet --verify "$ref^{tree}" 2>/dev/null) || return 1
+  if [ -z "$default_tree" ]; then
+    landed_note "the default branch ref $ref could not be read"
     return 1
   fi
-  default_tree=$(git -C "$WT" rev-parse --quiet --verify "$ref^{tree}" 2>/dev/null) || return 1
-  [ -n "$default_tree" ] || return 1
-  merged_tree=$(git -C "$WT" merge-tree --write-tree "$ref" HEAD 2>/dev/null) || return 1
-  merged_tree=$(printf '%s\n' "$merged_tree" | head -1)
-  [ "$merged_tree" = "$default_tree" ]
+  if merged_tree=$(git -C "$WT" merge-tree --write-tree "$ref" HEAD 2>/dev/null); then
+    merged_tree=$(printf '%s\n' "$merged_tree" | head -1)
+    [ "$merged_tree" = "$default_tree" ] && return 0
+    landed_note "$ref does not already contain this branch's changes"
+    return 1
+  fi
+  # The default branch's own motion is not this task's work, so only the files
+  # this branch changed are at stake - the same question the whole-tree merge
+  # above answers when it can run.
+  branch_paths_match_ref "$ref" "" "the default branch $ref"
 }
 
 # Has the worktree's committed work actually LANDED, though its commits are not
 # reachable from any remote-tracking branch? True when a merged PR proves the
-# current local work is contained in the PR head, OR the content is already in the
+# current local work is contained in that PR, OR the content is already in the
 # default branch (fallback, which also covers the no-PR and gh-error paths). False
-# only for genuinely unlanded work.
+# only for genuinely unlanded work, and for work whose state could not be
+# established at all - every unestablished fact is recorded for the refusal.
 work_is_landed() {
   local branch=$1
   pr_is_merged "$branch" && return 0
@@ -782,6 +1069,20 @@ validate_worktree_teardown_safety() {
   fi
   unpushed=$(printf '%s\n' "$unpushed_raw" | head -5)
 
+  # `--not --remotes` can only compare against remote-tracking refs this worktree
+  # happens to hold. A worktree with none for its own branch reads every commit as
+  # unpushed, which is absence of evidence, not evidence of absence. Ask the
+  # remotes themselves before treating these commits as unpushed. Skipped when the
+  # worktree is dirty, because uncommitted changes refuse either way.
+  LANDED_EVIDENCE=()
+  if [ -n "$unpushed" ] && [ -z "$dirty" ]; then
+    branch=$(worktree_branch_for_safety)
+    if head_is_on_remote_branch "$branch"; then
+      unpushed=
+      LANDED_EVIDENCE=()
+    fi
+  fi
+
   if [ -n "$unpushed" ] && [ "$MODE" = local-only ]; then
     DEFAULT=$(default_branch) || { echo "REFUSED: cannot determine default branch for $PROJ; expected origin/HEAD, main, or master." >&2; return 1; }
     if ! unmerged_raw=$(git -C "$WT" log --oneline HEAD --not "$DEFAULT" -- 2>/dev/null); then
@@ -797,6 +1098,7 @@ validate_worktree_teardown_safety() {
       echo "REFUSED: local-only worktree $WT has work not yet merged into $DEFAULT and not on any remote." >&2
       [ -n "$dirty" ] && echo "uncommitted changes present" >&2
       [ -n "$unmerged" ] && printf 'commits not yet on %s:\n%s\n' "$DEFAULT" "$unmerged" >&2
+      landed_evidence_print
       echo "Merge the branch into local $DEFAULT first (bin/fm-merge-local.sh after the captain approves), or push to a fork/remote, or get the captain's explicit OK to discard, then --force." >&2
       return 1
     fi
@@ -806,14 +1108,11 @@ validate_worktree_teardown_safety() {
     echo "Commit them (or get the captain's explicit OK to discard, then --force)." >&2
     return 1
   elif [ -n "$unpushed" ]; then
-    branch=${TEARDOWN_WORKTREE_BRANCH_FOR_SAFETY:-}
-    if [ -z "$branch" ]; then
-      branch=$(git -C "$WT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)
-      TEARDOWN_WORKTREE_BRANCH_FOR_SAFETY=$branch
-    fi
+    branch=$(worktree_branch_for_safety)
     if ! work_is_landed "$branch"; then
       echo "REFUSED: worktree $WT has work not on any remote and not landed." >&2
       printf 'unpushed commits:\n%s\n' "$unpushed" >&2
+      landed_evidence_print
       echo "Push the branch, land its PR, or get the captain's explicit OK to discard, then --force." >&2
       return 1
     fi
