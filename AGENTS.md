@@ -324,7 +324,7 @@ Tear down a ship task only after landing is confirmed.
 A teardown refusal for uncommitted or unlanded work is a stop-and-investigate result, never an obstacle to bypass.
 Never force teardown without explicit discard authority.
 After successful teardown, record completion, retain only the configured recent Done history, and re-evaluate queued work whose blockers and time gates have cleared.
-As part of teardown, `bin/fm-issue-closure.sh` verifies a merged PR's issues actually closed and reports any GitHub left open despite a closing reference; surface such an `issue-closure:` discrepancy to the captain - it means the board misrepresents landed work.
+As part of teardown, `bin/fm-issue-closure.sh` verifies a merged PR's issues actually closed and reports any GitHub issue left open despite a closing reference; surface such an `issue-closure:` discrepancy to the captain - it means the board misrepresents landed work.
 
 A secondmate is persistent and an empty queue is healthy.
 Retire one only on an explicit captain or main-firstmate decision, after loading `secondmate-provisioning`; its home must contain no work under way, and forced discard still requires explicit captain authority.

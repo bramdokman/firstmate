@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Best-effort post-merge verification that the issues a merged GitHub PR was
-# meant to close are actually closed, reporting - never auto-closing - any GitHub
-# left open despite a closing reference.
+# meant to close are actually closed, reporting - never auto-closing - any
+# GitHub issue left open despite a closing reference.
 #
 # GitHub silently ignores some closing keywords even when the PR body carries a
 # verified one, so the work lands on the default branch and the issue stays open
@@ -19,8 +19,9 @@
 # Candidate issue numbers are unioned and deduplicated, scoped to the PR's own
 # repository, from three sources:
 #   - the PR body, parsed for GitHub's closing-keyword grammar
-#     (close[sd]|fix(es|ed)?|resolve[ds]) followed by #N, owner/repo#N, or a full
-#     issue URL. GitHub may have silently ignored exactly these keywords.
+#     (close[sd]|fix(es|ed)?|resolve[ds]), optionally followed by a colon, then
+#     #N, owner/repo#N, or a full issue URL. GitHub may have silently ignored
+#     exactly these keywords.
 #   - GitHub's closingIssuesReferences for the PR, which captures references
 #     GitHub linked from commit messages even when the PR body is bare.
 #   - the task brief (--brief <path>), parsed with the same grammar, as a fallback
@@ -84,7 +85,7 @@ REPO_SLASH="$OWNER/$REPO"
 issue_refs_from_text() {
   local boundary kw repo_re bare text
   boundary='(^|[^[:alnum:]_])'
-  kw='(close[ds]?|fix(es|ed)?|resolve[ds]?)[[:space:]]+'
+  kw='(close[ds]?|fix(es|ed)?|resolve[ds]?):?[[:space:]]+'
   repo_re=$(printf '%s' "$REPO_SLASH" | sed 's/[.]/\\./g')
   bare="${boundary}${kw}"
   # Buffer stdin once: the three pattern greps each need the whole text, but a

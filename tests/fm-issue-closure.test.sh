@@ -28,6 +28,8 @@
 #   (m) owner/repo#N and full URL form -> same-repo forms are recognized
 #   (n) exit code                      -> always 0 (never blocks teardown)
 #   (o) reference to a PR number       -> silent (issues and PRs share numbers)
+#   (p) colon keyword form             -> "Fixes: #N" is a closing ref;
+#                                         prose like "prefixes: #N" still is not
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -297,6 +299,20 @@ test_ownerrepo_and_url_forms_recognized() {
   pass "owner/repo#N and full issue-URL closing references are recognized"
 }
 
+test_colon_keyword_form_recognized() {
+  local case_dir
+  case_dir=$(make_case colon-form)
+  gh_data_mock "$case_dir"
+  printf 'Fixes: #123. Also adds prefixes: #9 to the parser.\n' > "$case_dir/data/pr_body"
+  printf 'OPEN\n' > "$case_dir/data/issue_123"
+  printf 'OPEN\n' > "$case_dir/data/issue_9"
+  run_closure "$case_dir" "$PR_URL"
+  expect_code 0 "$RC" "colon-form: exit must be 0"
+  assert_contains "$OUT" "#123" "colon-form: the 'Fixes: #N' colon form must be recognized"
+  assert_not_contains "$OUT" "#9" "colon-form: prose 'prefixes: #9' must not be mistaken for a closing ref"
+  pass "the colon keyword form 'Fixes: #N' is recognized without loosening the word boundary"
+}
+
 test_pr_number_reference_is_silent() {
   local case_dir
   case_dir=$(make_case pr-number-ref)
@@ -346,6 +362,7 @@ test_gitlab_is_silent
 test_word_boundary_rejects_prose
 test_cross_repo_reference_ignored
 test_ownerrepo_and_url_forms_recognized
+test_colon_keyword_form_recognized
 test_pr_number_reference_is_silent
 test_malformed_url_exits_zero
 test_exit_zero_on_discrepancy
