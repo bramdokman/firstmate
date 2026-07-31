@@ -19,6 +19,11 @@
 #     git index.lock that blocks teardown. The return path retries on the lock
 #     error signature (even if the lock self-clears mid-check), then only removes a
 #     provably stale lock before re-running safety checks.
+#   - false-unpushed-refusal: a worktree holding NO remote-tracking ref for its own
+#     branch read every commit as unpushed, and a squash merge leaves no local hash
+#     anywhere on the base. Both refused work that was demonstrably safe. The remote
+#     is now asked directly, and content is compared file-by-file where commit
+#     identity cannot answer - without ever letting an unestablished fact pass.
 #
 # Matrix:
 #   (a) local-only + HEAD on a fork remote-tracking branch     -> ALLOW  (fork fix)
@@ -38,6 +43,15 @@
 #   (o) fm-pr-check rerun after HEAD moved                      -> no stale pr_head
 #   (p) fm-pr-check when local HEAD lags                        -> record remote PR head
 #   (q) no-mistakes + NO pr= recorded, PR discovered by branch  -> ALLOW  (yolo/no-CI merge)
+#   (z1) pushed branch, no remote-tracking ref in the worktree  -> ALLOW  (ask the remote)
+#   (z2) remote branch behind local HEAD                        -> REFUSE (names the remote head)
+#   (z3) remote unreachable (offline/auth/forge down)           -> REFUSE (names the lookup)
+#   (z4) squash-merged PR, head gone, proven by merge commit    -> ALLOW  (squash content)
+#   (z5) unpushed revert of work the merge commit still carries -> REFUSE (safety)
+#   (z6) merge commit without the branch's change               -> REFUSE (safety)
+#   (z7) git too old for merge-tree --write-tree, files match   -> ALLOW  (file fallback)
+#   (z8) git too old for merge-tree --write-tree, unlanded work -> REFUSE (safety)
+#   (z9) unpushed deletion hidden by git rename detection       -> REFUSE (safety)
 #
 # Also covers backlog teardown-lock-race: a git index.lock left in the worktree by a
 # killed crew process (bin/fm-teardown.sh's teardown_treehouse_return).
@@ -204,6 +218,22 @@ land_on_origin_main() {
   printf '%s\n' "$content" > "$tmp/$file"
   git -C "$tmp" add -- "$file"
   git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -m "squash $file"
+  git -C "$tmp" push -q origin HEAD:main
+  rm -rf "$tmp"
+}
+
+# Land several files on origin's default branch as ONE commit, the way a squash
+# merge lands a whole branch. Args: case_dir file content [file content ...]
+land_files_on_origin_main() {
+  local case_dir=$1 tmp; shift
+  tmp="$case_dir/_land_multi"
+  git clone -q "$case_dir/origin.git" "$tmp"
+  while [ "$#" -ge 2 ]; do
+    printf '%s\n' "$2" > "$tmp/$1"
+    git -C "$tmp" add -- "$1"
+    shift 2
+  done
+  git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -m "squash merge"
   git -C "$tmp" push -q origin HEAD:main
   rm -rf "$tmp"
 }
@@ -466,6 +496,68 @@ add_lsof_live_holder() {
 exit 0
 SH
   chmod +x "$case_dir/fakebin/lsof"
+}
+
+# Report PR 7 as merged with a head commit AND a squash merge commit. The head is
+# deliberately allowed to be a sha that exists nowhere, reproducing a merged PR
+# whose head branch was deleted and whose head object cannot be retrieved.
+add_gh_pr_merged_with_merge_commit() {
+  local case_dir=$1 head=$2 merge_sha=$3
+  cat > "$case_dir/fakebin/gh-axi" <<'SH'
+#!/usr/bin/env bash
+case "${1:-} ${2:-}" in
+  "pr list")
+    printf '%s\n' "count: 1 (showing first 1)" "pull_requests[1]{number,state}:" "  7,merged" ; exit 0 ;;
+  "pr view")
+    printf '%s\n' "pull_request:" "  number: 7" "  state: merged" ; exit 0 ;;
+esac
+exit 0
+SH
+  cat > "$case_dir/fakebin/gh" <<SH
+#!/usr/bin/env bash
+case "\${1:-} \${2:-}" in
+  "pr view")
+    case " \$* " in
+      *"state,headRefOid,mergeCommit"*)
+        printf '%s\t%s\t%s\n' 'MERGED' '$head' '$merge_sha' ; exit 0 ;;
+    esac
+    ;;
+esac
+echo "error: pull request not found" >&2
+exit 1
+SH
+  chmod +x "$case_dir/fakebin/gh-axi" "$case_dir/fakebin/gh"
+}
+
+# Stand in for a git too old to answer `merge-tree --write-tree` (it arrived in
+# git 2.38, and firstmate supports hosts that ship an older one). Everything else
+# passes through to the real git, so the whole-tree comparison is the only thing
+# that cannot run.
+add_git_without_merge_tree_write_tree() {
+  local case_dir=$1
+  cat > "$case_dir/fakebin/git" <<'SH'
+#!/usr/bin/env bash
+real=${REAL_GIT_FOR_TEST:?}
+for a in "$@"; do
+  if [ "$a" = merge-tree ]; then
+    echo "error: unknown option \`write-tree'" >&2
+    exit 129
+  fi
+done
+exec "$real" "$@"
+SH
+  chmod +x "$case_dir/fakebin/git"
+}
+
+# Push the worktree's task branch to origin, then delete the remote-tracking ref
+# the push created. The commits ARE on the remote; the worktree just holds no
+# refs/remotes/origin/<branch> to see that - the reported false-refusal shape.
+push_branch_and_drop_tracking_ref() {
+  local case_dir=$1
+  git -C "$case_dir/wt" push -q origin fm/task-x1
+  git -C "$case_dir/project" update-ref -d refs/remotes/origin/fm/task-x1 2>/dev/null || true
+  ! git -C "$case_dir/wt" rev-parse --quiet --verify refs/remotes/origin/fm/task-x1 >/dev/null 2>&1 \
+    || fail "fixture failed: the worktree still holds a remote-tracking ref for its branch"
 }
 
 add_lsof_error() {
@@ -1462,6 +1554,247 @@ test_teardown_surfaces_open_issue_and_does_not_block() {
   pass "teardown surfaces an issue a merged PR left open and never blocks on the check"
 }
 
+# The worktree holds ZERO remote-tracking refs for its own branch, so the local
+# ahead-of-remote comparison reads every commit as unpushed - yet the commits are
+# on origin. Asking the remote directly must settle it and allow teardown.
+test_pushed_branch_without_remote_tracking_ref_allows() {
+  local case_dir rc
+  case_dir=$(make_case no-tracking-ref)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  push_branch_and_drop_tracking_ref "$case_dir"
+  # No PR (default mock) and the content is NOT on origin/main, so the remote
+  # branch lookup is the only thing that can prove the work is safe.
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "no-tracking-ref: teardown should succeed when the branch is on the remote"
+  ! grep -q REFUSED "$case_dir/stderr" || fail "no-tracking-ref: teardown printed a REFUSED line"
+  pass "branch pushed to a remote the worktree has no tracking ref for is torn down (the fix)"
+}
+
+# The same missing-tracking-ref shape, but the branch on the remote genuinely
+# lags the local work. The guard must still refuse, and must say what the remote
+# actually holds so the operator can check it.
+test_remote_branch_behind_local_head_refuses_and_says_so() {
+  local case_dir rc
+  case_dir=$(make_case remote-behind)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  push_branch_and_drop_tracking_ref "$case_dir"
+  wt_commit_file "$case_dir" feature.txt "hello again" "unpushed follow-up"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "remote-behind: teardown should refuse genuinely unpushed commits"
+  assert_grep "REFUSED" "$case_dir/stderr" "remote-behind: no REFUSED line in stderr"
+  assert_grep "which does not contain the local commits" "$case_dir/stderr" \
+    "remote-behind: refusal did not say what the remote actually holds"
+  pass "a remote branch that lags the local work still refuses, naming what the remote holds"
+}
+
+# Offline / auth failure / forge down. Silence from the remote must never read as
+# "safe to discard", and the refusal must name the lookup as the thing that could
+# not be established.
+test_unreachable_remote_refuses_and_names_the_lookup() {
+  local case_dir rc
+  case_dir=$(make_case remote-unreachable)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  git -C "$case_dir/wt" push -q origin fm/task-x1
+  git -C "$case_dir/project" update-ref -d refs/remotes/origin/fm/task-x1 2>/dev/null || true
+  # The commits ARE on the remote, but the remote is now unreachable: an
+  # unverifiable state must refuse, not proceed.
+  git -C "$case_dir/project" remote set-url origin "$case_dir/gone.git"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "remote-unreachable: teardown must refuse when the remote cannot be reached"
+  assert_grep "REFUSED" "$case_dir/stderr" "remote-unreachable: no REFUSED line in stderr"
+  assert_grep "could not reach origin" "$case_dir/stderr" \
+    "remote-unreachable: refusal did not name the failed remote lookup"
+  assert_grep "not proof the work is unpushed" "$case_dir/stderr" \
+    "remote-unreachable: refusal did not distinguish unknown from unpushed"
+  pass "an unreachable remote refuses and names the lookup that could not be completed"
+}
+
+# A squash merge rewrites the branch into one commit, so no local hash exists on
+# the base and the PR's head object is gone with its deleted branch. The default
+# branch has since moved on in the same file, so a whole-tree merge against it
+# conflicts and settles nothing. The PR's own merge commit still holds exactly
+# what was merged, and comparing the changed files against it must allow teardown.
+test_squash_merged_pr_allows_via_merge_commit() {
+  local case_dir rc merge_sha
+  case_dir=$(make_case squash-merge-commit)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  append_pr_meta_url "$case_dir"
+  land_on_origin_main "$case_dir" feature.txt hello
+  merge_sha=$(git -C "$case_dir/project" ls-remote origin main | awk 'NF { print $1; exit }')
+  # main moves on in the very file the branch changed, so the default-branch
+  # comparison can no longer prove anything either way.
+  land_on_origin_main "$case_dir" feature.txt "hello, revised"
+  # A head sha that exists nowhere: the merged PR's branch was deleted.
+  add_gh_pr_merged_with_merge_commit "$case_dir" \
+    0000000000000000000000000000000000000000 "$merge_sha"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "squash-merge-commit: teardown should succeed when the merge commit holds the work"
+  ! grep -q REFUSED "$case_dir/stderr" || fail "squash-merge-commit: teardown printed a REFUSED line"
+  pass "squash-merged work is recognized from the PR's merge commit when no local hash survives"
+}
+
+# An unpushed local commit that REVERTS work the merged PR still carries changes
+# no file relative to the branch's own base, so a comparison that looked only at
+# the branch's changed files would call it landed and discard the revert. The
+# files the merge commit itself contributed are at stake too, so this must refuse.
+test_unpushed_revert_of_merged_work_refuses() {
+  local case_dir rc merge_sha
+  case_dir=$(make_case unpushed-revert)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  wt_commit_file "$case_dir" extra.txt keep "add extra"
+  append_pr_meta_url "$case_dir"
+  land_files_on_origin_main "$case_dir" feature.txt hello extra.txt keep
+  git -C "$case_dir/project" fetch -q origin main
+  merge_sha=$(git -C "$case_dir/project" rev-parse refs/remotes/origin/main)
+  # Locally undo one of the changes the PR merged. Relative to the branch's own
+  # base this leaves only extra.txt changed, so a comparison confined to the
+  # branch's files would see a perfect match and discard the revert.
+  git -C "$case_dir/wt" rm -q -- feature.txt
+  git -C "$case_dir/wt" -c user.email=t@t -c user.name=t commit -q -m "revert the feature"
+  # The merge commit is already local, but origin is now unreachable, so the
+  # default-branch comparison cannot run and this answer is the decisive one.
+  git -C "$case_dir/project" remote set-url origin "$case_dir/gone.git"
+  add_gh_pr_merged_with_merge_commit "$case_dir" \
+    0000000000000000000000000000000000000000 "$merge_sha"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "unpushed-revert: teardown must refuse an unpushed revert of merged work"
+  assert_grep "REFUSED" "$case_dir/stderr" "unpushed-revert: no REFUSED line in stderr"
+  pass "an unpushed local revert of merged work is still refused (safety preserved)"
+}
+
+# The same squash-merged-then-moved-on shape, but the branch's own change never
+# landed at all. Comparing files against the merge commit must not rescue it.
+test_merge_commit_without_branch_change_refuses() {
+  local case_dir rc merge_sha
+  case_dir=$(make_case merge-commit-missing-work)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  append_pr_meta_url "$case_dir"
+  # A merge commit that landed somebody else's file, not this branch's work.
+  land_on_origin_main "$case_dir" other.txt unrelated
+  merge_sha=$(git -C "$case_dir/project" ls-remote origin main | awk 'NF { print $1; exit }')
+  add_gh_pr_merged_with_merge_commit "$case_dir" \
+    0000000000000000000000000000000000000000 "$merge_sha"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "merge-commit-missing-work: teardown must refuse work the merge commit does not hold"
+  assert_grep "REFUSED" "$case_dir/stderr" "merge-commit-missing-work: no REFUSED line in stderr"
+  assert_grep "file(s) the branch changed: feature.txt" "$case_dir/stderr" \
+    "merge-commit-missing-work: refusal did not name the leftover file"
+  pass "work absent from the PR's merge commit is still refused (safety preserved)"
+}
+
+# git's rename detection can fold an unpushed deletion out of the path set: the
+# branch adds B.txt as a copy of pre-existing A.txt, the squash merge commit
+# contributes B.txt, and an unpushed local commit deletes A.txt. A rename-paired
+# diff lists only B.txt, so a comparison built from it would call the deletion
+# landed and discard it. The path sets must be collected without rename pairing.
+test_unpushed_delete_hidden_by_rename_detection_refuses() {
+  local case_dir rc merge_sha
+  case_dir=$(make_case rename-hidden-delete)
+  write_meta "$case_dir" no-mistakes ship
+  # A.txt pre-exists on the shared base: commit it on the branch and push it to
+  # origin main, so the branch's own work starts after it.
+  wt_commit_file "$case_dir" A.txt hello "add A"
+  git -C "$case_dir/wt" push -q origin HEAD:main
+  wt_commit_file "$case_dir" B.txt hello "add B as a copy of A"
+  append_pr_meta_url "$case_dir"
+  # The squash merge lands only B.txt on origin main.
+  land_on_origin_main "$case_dir" B.txt hello
+  merge_sha=$(git -C "$case_dir/project" ls-remote origin main | awk 'NF { print $1; exit }')
+  # The unpushed work at stake: deleting A.txt. Rename detection pairs this
+  # deletion with the B.txt addition and hides A.txt from a rename-aware diff.
+  git -C "$case_dir/wt" rm -q -- A.txt
+  git -C "$case_dir/wt" -c user.email=t@t -c user.name=t commit -q -m "delete A"
+  add_gh_pr_merged_with_merge_commit "$case_dir" \
+    0000000000000000000000000000000000000000 "$merge_sha"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "rename-hidden-delete: teardown must refuse an unpushed deletion rename-paired with the branch's addition"
+  assert_grep "REFUSED" "$case_dir/stderr" "rename-hidden-delete: no REFUSED line in stderr"
+  assert_grep "file(s) the branch changed: A.txt" "$case_dir/stderr" \
+    "rename-hidden-delete: refusal did not name the deleted file"
+  pass "an unpushed deletion hidden by rename detection is still refused (safety preserved)"
+}
+
+# On a git too old for `merge-tree --write-tree`, the whole-tree comparison cannot
+# run at all. That is a tool that could not answer, not proof of unlanded work, so
+# the file-by-file comparison must still recognize squash-landed content.
+test_content_fallback_without_merge_tree_write_tree_allows() {
+  local case_dir rc
+  case_dir=$(make_case no-merge-tree)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  land_on_origin_main "$case_dir" feature.txt hello
+  add_git_without_merge_tree_write_tree "$case_dir"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "no-merge-tree: teardown should succeed when the files already match the default branch"
+  ! grep -q REFUSED "$case_dir/stderr" || fail "no-merge-tree: teardown printed a REFUSED line"
+  pass "squash-landed content is recognized file-by-file when a whole-tree merge cannot run"
+}
+
+# The same old-git case, but the work never landed. The fallback must not turn a
+# tool that could not answer into permission to discard.
+test_content_fallback_without_merge_tree_write_tree_still_refuses_unlanded() {
+  local case_dir rc
+  case_dir=$(make_case no-merge-tree-unlanded)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  add_git_without_merge_tree_write_tree "$case_dir"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "no-merge-tree-unlanded: teardown must refuse genuinely unlanded work"
+  assert_grep "REFUSED" "$case_dir/stderr" "no-merge-tree-unlanded: no REFUSED line in stderr"
+  pass "a whole-tree merge that cannot run never allows discarding unlanded work"
+}
+
 # An issue-closure lookup failure (gh unavailable / network) must not block or
 # fail teardown; the merge landed correctly and cleanup must proceed.
 test_teardown_issue_closure_lookup_failure_does_not_block() {
@@ -1520,5 +1853,14 @@ test_transient_index_lock_clears_after_first_attempt_and_retry_succeeds
 test_persistent_index_lock_exhausts_retries_and_refuses_loudly
 test_empty_retry_wait_uses_default_without_aborting
 test_fractional_legacy_retry_wait_refuses_without_arithmetic_error
+test_pushed_branch_without_remote_tracking_ref_allows
+test_remote_branch_behind_local_head_refuses_and_says_so
+test_unreachable_remote_refuses_and_names_the_lookup
+test_squash_merged_pr_allows_via_merge_commit
+test_unpushed_revert_of_merged_work_refuses
+test_merge_commit_without_branch_change_refuses
+test_unpushed_delete_hidden_by_rename_detection_refuses
+test_content_fallback_without_merge_tree_write_tree_allows
+test_content_fallback_without_merge_tree_write_tree_still_refuses_unlanded
 test_teardown_surfaces_open_issue_and_does_not_block
 test_teardown_issue_closure_lookup_failure_does_not_block
