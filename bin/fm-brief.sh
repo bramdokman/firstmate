@@ -33,6 +33,10 @@
 #   direct-PR    implement -> push + open PR via gh-axi (no pipeline) -> captain merge
 #   local-only   implement on branch, stop and report "ready in branch" (no push/PR);
 #                captain approves, firstmate merges to local main
+# Both PR-based modes carry an evidence gate on the done report, because workers
+# repeatedly read the absence of a visible failure as success: a real PR URL must
+# exist, and "checks green" may describe only checks that actually ran and passed.
+# local-only has no PR by definition and carries no part of that gate.
 # Ship briefs begin with a worktree-isolation assertion before the branch step.
 # Scout tasks ignore mode - their deliverable is a report, not a merge.
 # Every scaffold's status protocol distinguishes the configured
@@ -302,6 +306,19 @@ read -r MODE _ <<EOF
 $("$FM_ROOT/bin/fm-project-mode.sh" "$REPO")
 EOF
 
+# Evidence gate for the PR-based modes. Measured failure: workers on every
+# harness reported "done: committed <sha>" with no PR, and "checks green" on a
+# fork PR whose workflow runs sat at action_required so nothing had run at all.
+# Both read the absence of a visible failure as success, so the done report has
+# to name the positive evidence each half requires. local-only never gets this:
+# it has no PR by definition.
+IFS= read -r -d '' DONE_EVIDENCE <<'EOF' || true
+**Neither half of done may be inferred from the absence of a failure.**
+1. A PR must exist and you must have its real URL. A commit, or even a pushed branch, is not a delivered PR - if there is no PR you are not done, so append `blocked: {what is actually true}` instead.
+2. `checks green` may describe only checks that actually ran and passed. `gh pr checks <number>` printing nothing, reporting no checks, or listing only skipped, queued, or pending runs is NOT green - a fork PR awaiting approval sits at `action_required` and runs nothing. If nothing ran, never write `checks green`: report what you actually see and let firstmate decide.
+EOF
+DONE_EVIDENCE=${DONE_EVIDENCE%$'\n'}
+
 case "$MODE" in
   direct-PR)
     SETUP2=""
@@ -309,9 +326,11 @@ case "$MODE" in
     IFS= read -r -d '' DOD <<EOF || true
 # Definition of done
 This project ships **direct-PR**: you raise the PR yourself, without the no-mistakes pipeline.
-The task is complete only when committed on your branch.
+Committing is not delivering: the task is complete only when a PR exists for your branch.
 When it is implemented and committed, push your branch and open a PR with \`gh-axi\`, then append \`done: PR {url}\` to the status file and stop.
 Do NOT run /no-mistakes. The configured merge authority decides whether to merge the PR; firstmate relays the outcome.
+
+$DONE_EVIDENCE
 EOF
     ;;
   local-only)
@@ -332,7 +351,8 @@ EOF
     RULE1='1. Never push to the default branch. Never merge a PR.'
     IFS= read -r -d '' DOD <<EOF || true
 # Definition of done
-The task is complete only when committed on your branch.
+This ships in two stages, and the first one is a handoff, not delivery.
+Stage 1 - the implementation is complete when committed on your branch.
 When you believe it is complete, append \`done: {summary}\` to the status file and stop.
 Firstmate will then instruct you to run /no-mistakes to validate and ship a PR.
 
@@ -346,7 +366,10 @@ Two firstmate-specific rules layer on top of that guidance:
   When the decision comes back, feed it to the gate with \`no-mistakes axi respond\` and let the pipeline apply it - do not route the question to "the user" or implement the fix yourself.
 - Avoid \`--yes\`: it would silently bypass firstmate's authority check and any required captain escalation.
 
+Stage 2 - delivery.
 After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge), append \`done: PR {url} checks green\` and stop. You are finished.
+
+$DONE_EVIDENCE
 EOF
     ;;
 esac
