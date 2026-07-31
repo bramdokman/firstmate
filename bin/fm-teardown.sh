@@ -2,8 +2,10 @@
 # Tear down a finished task: return the treehouse worktree, release the Orca
 # worktree, or retire a secondmate home; kill the recorded runtime endpoint,
 # clear volatile state, refresh/prune the project's clone for PR-based ship
-# tasks, then print a backlog-refresh reminder for ship and scout teardowns
-# (a secondmate teardown prints none, since secondmates are not backlog items).
+# tasks, run the best-effort merged-PR issue-closure report (see
+# bin/fm-issue-closure.sh), then print a backlog-refresh reminder for ship and
+# scout teardowns (a secondmate teardown prints none, since secondmates are not
+# backlog items).
 # REFUSES if the worktree holds work that has not LANDED, because cleanup
 # hard-resets/removes the worktree and kills its processes. Work has landed when it is
 # reachable from any remote-tracking branch (a fork counts as a remote, so
@@ -1350,6 +1352,17 @@ rm -f "$STATE/$ID.status" "$STATE/$ID.turn-ended" "$STATE/$ID.meta" \
   "$STATE/$ID.kimi-turnend-token"
 if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
   "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true
+fi
+# Best-effort: verify a merged PR's issues actually closed. GitHub silently
+# ignores some closing keywords, leaving an issue open after the work lands; this
+# reports any such discrepancy so firstmate can surface it. It never blocks
+# teardown and never auto-closes anything. See bin/fm-issue-closure.sh.
+if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ -n "$PR_URL" ]; then
+  if [ -f "$DATA/$ID/brief.md" ]; then
+    "$FM_ROOT/bin/fm-issue-closure.sh" "$PR_URL" --brief "$DATA/$ID/brief.md" || true
+  else
+    "$FM_ROOT/bin/fm-issue-closure.sh" "$PR_URL" || true
+  fi
 fi
 echo "teardown $ID complete (window $T, worktree $WT)"
 backlog_refresh_reminder
