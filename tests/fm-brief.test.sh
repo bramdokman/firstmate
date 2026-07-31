@@ -237,6 +237,155 @@ test_faster_paths_use_configured_authority_without_stacked_review() {
   pass "fm-brief.sh: faster paths use configured authority without stacked review"
 }
 
+# Measured failure (2026-07-30/31, seven occurrences across claude, codex and
+# opencode/GLM): workers reported "done: committed <sha>" with no PR, and
+# "checks green" on a fork PR whose runs sat at action_required so nothing had
+# run. Both treat the absence of a visible failure as success, so every PR-based
+# mode must state the positive evidence each half of done requires.
+test_pr_modes_require_a_real_pr_and_genuinely_run_checks() {
+  local home id brief
+  home="$TMP_ROOT/done-evidence-home"
+  write_registry "$home"
+
+  for id_proj in "brief-done-evidence-nm:no-registry-proj" "brief-done-evidence-dp:direct-proj"; do
+    id=${id_proj%%:*}
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" "${id_proj##*:}" >/dev/null 2>&1
+    brief="$home/data/$id/brief.md"
+    assert_grep "Neither half of the delivery report - the done line that names a PR - may be inferred from the absence of a failure." "$brief" \
+      "$id: PR-based brief lost the absence-of-failure gate"
+    assert_grep "A PR must exist and you must have its real URL." "$brief" \
+      "$id: PR-based brief did not require a real PR URL"
+    assert_grep "A commit, or even a pushed branch, is not a delivered PR" "$brief" \
+      "$id: PR-based brief did not deny that committing is delivering"
+    # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+    assert_grep '`gh pr checks <number>` printing nothing' "$brief" \
+      "$id: PR-based brief did not name the exact no-output shape that read as green"
+    assert_grep "listing only skipped, queued, or pending runs is NOT green" "$brief" \
+      "$id: PR-based brief accepted a check-run set with nothing actually run"
+    # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+    assert_grep 'sits at `action_required` and runs nothing' "$brief" \
+      "$id: PR-based brief lost the fork-PR case that produced the false green"
+    assert_no_grep "The task is complete only when committed on your branch." "$brief" \
+      "$id: PR-based brief still declares a local commit complete"
+  done
+
+  # The evidence gate must not hand a worker a new way to declare success:
+  # a missing PR is a blocker, never a done report.
+  brief="$home/data/brief-done-evidence-dp/brief.md"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'never claim delivery without one: if the report should name a PR and none exists, append `blocked: {what is actually true}` instead' \
+    "$brief" "direct-PR brief turned a missing PR into something other than a blocker"
+  assert_grep 'Committing is not delivering: the task is complete only when a PR exists for your branch.' \
+    "$brief" "direct-PR brief lost its PR-is-completion statement"
+
+  # The no-mistakes first report is a handoff, not delivery, and its terminal
+  # gate keeps the exact status token firstmate's classifier consumes.
+  brief="$home/data/brief-done-evidence-nm/brief.md"
+  assert_grep "the first one is a handoff, not delivery" "$brief" \
+    "no-mistakes brief no longer distinguishes the handoff from delivery"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'append `done: PR {url} checks green` and stop' "$brief" \
+    "no-mistakes brief lost its terminal checks-green report token"
+  assert_grep "do not wait for it to keep monitoring in the background until merge" "$brief" \
+    "no-mistakes brief lost the CI-ready return point"
+
+  pass "fm-brief.sh: PR-based modes require a real PR and checks that actually ran"
+}
+
+# The evidence gate governs only the delivery report that names a PR. The
+# no-mistakes Stage 1 handoff has no PR by design and is reported as
+# `done: {summary}` at a local commit; an unscoped gate ("if there is no PR you
+# are not done") let a literal reader route that legitimate handoff to a false
+# `blocked:` and stall the flow.
+test_no_mistakes_handoff_is_outside_the_delivery_gate() {
+  local home brief
+  home="$TMP_ROOT/handoff-scope-home"
+  write_registry "$home"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-handoff-scope no-registry-proj >/dev/null 2>&1
+  brief="$home/data/brief-handoff-scope/brief.md"
+
+  # The no-PR handoff is still instructed exactly as before: commit, report,
+  # stop.
+  assert_grep "Stage 1 - the implementation is complete when committed on your branch." "$brief" \
+    "no-mistakes brief lost the Stage 1 commit handoff"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'When you believe it is complete, append `done: {summary}` to the status file and stop.' "$brief" \
+    "no-mistakes brief no longer instructs the Stage 1 handoff report"
+  # The gate names its own scope, so the PR-less handoff can neither satisfy
+  # nor violate it.
+  assert_grep "the done line that names a PR" "$brief" \
+    "no-mistakes brief's evidence gate is not scoped to the PR-naming delivery report"
+  assert_no_grep "if there is no PR you are not done" "$brief" \
+    "no-mistakes brief reads every no-PR done report as a violation, turning the Stage 1 handoff into a false blocker"
+  assert_no_grep "Neither half of done may be inferred" "$brief" \
+    "no-mistakes brief still carries the unscoped gate opening"
+  # A missing PR at delivery still routes to blocked, never to a done report.
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'append `blocked: {what is actually true}` instead' "$brief" \
+    "no-mistakes brief lost the blocked routing for a missing PR at delivery"
+  pass "fm-brief.sh: no-mistakes Stage 1 handoff sits outside the delivery evidence gate"
+}
+
+# local-only has no PR by definition, so the PR-based evidence gate must not be
+# imposed on it: a requirement it cannot satisfy would be unfollowable.
+test_local_only_keeps_its_no_pr_contract() {
+  local home brief
+  home="$TMP_ROOT/local-only-contract-home"
+  write_registry "$home"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-localonly-nopr local-proj >/dev/null 2>&1
+  brief="$home/data/brief-localonly-nopr/brief.md"
+
+  assert_no_grep "A PR must exist" "$brief" \
+    "local-only brief was given a PR requirement it cannot satisfy"
+  assert_no_grep "Neither half of the delivery report" "$brief" \
+    "local-only brief inherited the PR-based evidence gate"
+  assert_no_grep "checks green" "$brief" \
+    "local-only brief was given a CI-green requirement it has no CI for"
+  assert_grep "no remote, no PR, no pipeline" "$brief" \
+    "local-only brief lost its no-remote contract"
+  assert_grep "append \`done: ready in branch fm/brief-localonly-nopr\`" "$brief" \
+    "local-only brief lost its ready-in-branch report"
+  pass "fm-brief.sh: local-only keeps its no-PR definition of done"
+}
+
+# The tightened done wording must not displace any existing safety clause, in
+# any ship mode.
+test_ship_safety_clauses_survive_in_every_mode() {
+  local home id brief
+  home="$TMP_ROOT/safety-survival-home"
+  write_registry "$home"
+
+  for id_proj in "brief-safety-nm:no-registry-proj" "brief-safety-dp:direct-proj" "brief-safety-lo:local-proj"; do
+    id=${id_proj%%:*}
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" "${id_proj##*:}" >/dev/null 2>&1
+    brief="$home/data/$id/brief.md"
+    assert_grep "**Verify isolation before anything else.**" "$brief" \
+      "$id: brief lost the worktree-isolation assertion"
+    assert_grep "blocked: launched in primary checkout, not an isolated worktree" "$brief" \
+      "$id: brief lost the primary-checkout stop instruction"
+    assert_grep "# Herdr lifecycle declaration - NOT ENABLED" "$brief" \
+      "$id: brief lost the Herdr lab gate"
+    assert_grep "regenerate the brief with \`--herdr-lab\` before dispatch" "$brief" \
+      "$id: brief lost the Herdr regeneration instruction"
+    assert_grep "Never stop, restart, or update the shared \`no-mistakes\` daemon" "$brief" \
+      "$id: brief lost the shared-daemon rule"
+    assert_grep "append \`needs-decision: {summary of options}\` and stop" "$brief" \
+      "$id: brief lost the escalation rule"
+    assert_grep "mid-task \`working:\` line (including setup complete) is nonterminal" "$brief" \
+      "$id: brief lost the nonterminal working: protection"
+    assert_no_grep "EOF" "$brief" "$id: brief leaked a heredoc EOF marker"
+  done
+
+  # The Herdr hard contract still replaces the declaration when asked for.
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-safety-lab direct-proj --herdr-lab >/dev/null 2>&1
+  brief="$home/data/brief-safety-lab/brief.md"
+  assert_grep "# Herdr isolation - HARD SAFETY CONTRACT" "$brief" \
+    "--herdr-lab ship brief lost its hard safety contract alongside the done gate"
+  assert_grep "A PR must exist and you must have its real URL." "$brief" \
+    "--herdr-lab ship brief lost the done evidence gate"
+  pass "fm-brief.sh: isolation, Herdr and reporting safety clauses survive in every ship mode"
+}
+
 # Pin the specific line the bug lived on: the no-mistakes DOD's no-mistakes
 # reference must render as plain prose with no dangling apostrophe artifact.
 test_no_mistakes_dod_wording() {
@@ -623,6 +772,10 @@ test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
 test_ship_modes_generate_clean_briefs
 test_faster_paths_use_configured_authority_without_stacked_review
+test_pr_modes_require_a_real_pr_and_genuinely_run_checks
+test_no_mistakes_handoff_is_outside_the_delivery_gate
+test_local_only_keeps_its_no_pr_contract
+test_ship_safety_clauses_survive_in_every_mode
 test_no_mistakes_dod_wording
 test_ship_project_memory_wording
 test_herdr_lab_contract_is_explicit_and_complete
