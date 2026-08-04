@@ -710,11 +710,18 @@ pr_is_merged() {
 }
 
 # Last-chance merge attribution for the completion receipt. It runs after the
-# destructive cleanup steps, so the lookup is bounded, never prompts, and treats
-# every failure as "unknown" instead of stranding a half-torn-down task. GitHub
-# only: a merged GitLab merge request leaves merged_commit null in the receipt
-# rather than having a commit invented for it.
+# destructive cleanup steps, so the lookup is only ever attempted when it can be
+# bounded: without a usable timeout command the enrichment is skipped entirely
+# and the receipt keeps an honest unknown, because an unbounded network call here
+# would strand a half-torn-down task. It never prompts and treats every failure
+# as unknown. GitHub only: a merged GitLab merge request leaves merged_commit
+# null in the receipt rather than having a commit invented for it.
 COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS=${FM_COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS:-15}
+# A zero or non-integer bound is no bound at all (GNU `timeout 0` waits forever),
+# so an unusable override falls back to the default instead of being trusted.
+case "$COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS" in
+  ''|*[!0-9]*|0) COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS=15 ;;
+esac
 
 refresh_completion_merge_commit() {
   local view state merge_sha runner=
@@ -725,15 +732,12 @@ refresh_completion_merge_commit() {
     runner=timeout
   elif command -v gtimeout >/dev/null 2>&1; then
     runner=gtimeout
-  fi
-  if [ -n "$runner" ]; then
-    view=$(cd "$PROJ" && GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
-      "$runner" "$COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS" \
-      gh pr view "$PR_URL" --json state,mergeCommit 2>/dev/null </dev/null) || return 0
   else
-    view=$(cd "$PROJ" && GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
-      gh pr view "$PR_URL" --json state,mergeCommit 2>/dev/null </dev/null) || return 0
+    return 0
   fi
+  view=$(cd "$PROJ" && GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
+    "$runner" "$COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS" \
+    gh pr view "$PR_URL" --json state,mergeCommit 2>/dev/null </dev/null) || return 0
   state=$(printf '%s' "$view" | jq -r '.state // empty' 2>/dev/null) || return 0
   case "$state" in MERGED|merged) ;; *) return 0 ;; esac
   merge_sha=$(printf '%s' "$view" | jq -r '.mergeCommit.oid // empty' 2>/dev/null) || return 0
