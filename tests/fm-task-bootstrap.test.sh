@@ -381,7 +381,7 @@ test_unsupported_runner_pin_is_refused() {
   printf 'tool-v1\n' > "$worktree/toolchain.version"
 
   set +e
-  out=$(FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER=cat "$BOOTSTRAP" "$worktree" 2>&1)
+  out=$(env FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER=cat "$BOOTSTRAP" "$worktree" 2>&1)
   status=$?
   set -e
   [ "$status" -ne 0 ] || fail "an arbitrary command was accepted as the bounded runner"
