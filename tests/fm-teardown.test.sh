@@ -63,6 +63,12 @@
 #   (w) index.lock mtime read failure                         -> lock kept, REFUSE
 #   (x) transient lock cleared after first failed return      -> retry ALLOW
 #   (y) persistent lock (never clears, not provably stale)    -> REFUSE loudly
+#
+# It also owns the durable completion-receipt coverage teardown drives through
+# bin/fm-completion-receipt-lib.sh: the typed record retained before volatile
+# task state is deleted, merge attribution, the honest legacy dispatch-time gap,
+# retry/re-dispatch deduping, and a receipt write failure that must warn without
+# blocking cleanup.
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
