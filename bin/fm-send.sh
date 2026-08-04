@@ -315,8 +315,13 @@ else
   retries=${FM_SEND_RETRIES:-3}
   sleep_s=${FM_SEND_SLEEP:-0.4}
   # Type once, submit, verify. Only exact empty confirms delivery; every other
-  # verdict preserves the loud refusal boundary.
+  # verdict preserves the loud refusal boundary. Local backends also receive a
+  # private temporary sidecar so they can return non-secret proof categories
+  # without weakening the exact verdict vocabulary or putting message contents
+  # in diagnostics. Remote delivery has its own SSH-255 unknown contract and
+  # must never allocate or consume the local sidecar.
   send_rc=0
+  submit_diag=""
   if [ "$TARGET_BACKEND" = remote ]; then
     if "$SCRIPT_DIR/fm-on.sh" "$TARGET_REMOTE_ID" fm-remote-secondmate-control.sh send "$TARGET_REMOTE_ID" "$MESSAGE" < /dev/null >/dev/null; then
       verdict=empty
@@ -324,10 +329,21 @@ else
       send_rc=$?
       verdict=send-failed
     fi
-  elif verdict=$(fm_backend_send_text_submit "$TARGET_BACKEND" "$T" "$MESSAGE" "$retries" "$sleep_s" "$settle" "$EXPECTED_LABEL"); then
-    :
   else
-    send_rc=$?
+    submit_diag_file=$(mktemp "${TMPDIR:-/tmp}/fm-send-submit-diag.XXXXXX") || {
+      echo "error: could not create private submit diagnostic storage" >&2
+      exit 1
+    }
+    fm_send_submit_diag_cleanup() { rm -f "$submit_diag_file"; }
+    trap fm_send_submit_diag_cleanup EXIT
+    chmod 600 "$submit_diag_file"
+    if verdict=$(FM_BACKEND_SEND_DIAG_FILE="$submit_diag_file" \
+      fm_backend_send_text_submit "$TARGET_BACKEND" "$T" "$MESSAGE" "$retries" "$sleep_s" "$settle" "$EXPECTED_LABEL"); then
+      :
+    else
+      send_rc=$?
+    fi
+    submit_diag=$(cat "$submit_diag_file" 2>/dev/null || true)
   fi
   if [ "$send_rc" -ne 0 ]; then
     if [ "$TARGET_BACKEND" = remote ] && [ "$send_rc" -eq 255 ] && [ -n "$PENDING_REPLY_CORR" ]; then
@@ -341,6 +357,10 @@ else
     echo "error: text not sent to $T ($TARGET_BACKEND send failed; tried $RESOLUTION_TRIED)" >&2
     exit 1
   fi
+  case "$submit_diag" in
+    '') submit_diag_suffix="" ;;
+    *) submit_diag_suffix="; $submit_diag" ;;
+  esac
   case "$verdict" in
     empty)
       ;;
@@ -355,7 +375,7 @@ else
       if [ "$PENDING_REPLY_CREATED" = 1 ] && [ -n "$PENDING_REPLY_CORR" ]; then
         fm_pending_reply_discard_undelivered "$STATE" "$PENDING_REPLY_CORR" || true
       fi
-      echo "error: text not submitted to $T (delivery unconfirmed; verdict=${verdict:-unknown}; tried $RESOLUTION_TRIED)" >&2
+      echo "error: text not submitted to $T (delivery unconfirmed; verdict=${verdict:-unknown}${submit_diag_suffix}; tried $RESOLUTION_TRIED)" >&2
       exit 1
       ;;
   esac
