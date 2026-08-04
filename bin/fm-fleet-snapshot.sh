@@ -178,6 +178,15 @@ bool_json() {
   if [ "$1" = 1 ]; then printf 'true'; else printf 'false'; fi
 }
 
+# Feed JSON documents to a `jq -n` filter as a stdin stream, to be bound in the
+# same order by leading `input as $name` lines.
+# Aggregate values here (backlog, tasks, per-task and secondmate objects, the
+# final snapshot) exceed the OS argv limit at real fleet size, so carrying them
+# on --argjson kills the whole run with "Argument list too long" rather than
+# reporting less; only scalars and bounded config values belong on argv.
+# A malformed or missing document still fails the filter loudly instead of
+# binding null. tests/fm-bearings-snapshot.test.sh regresses a >128 KiB backlog
+# and a >128 KiB secondmate home summary end to end through Bearings.
 json_values() {
   printf '%s\n' "$@"
 }
