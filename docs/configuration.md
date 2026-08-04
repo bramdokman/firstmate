@@ -202,7 +202,8 @@ Declarations must be noninteractive: every mode runs with stdin from `/dev/null`
 The bound defaults to 900 seconds, and a project overrules it by handling the optional `.firstmate/bootstrap timeout` mode and printing a positive whole number of seconds.
 The bound is enforced by `timeout`, `gtimeout`, or a one-shot inline Node executor, in that order, so it holds on stock macOS as well as Linux; there is no unbounded fallback, and a host with none of the three refuses the declaration instead of running it.
 An overrun terminates the declaration's whole process group with `SIGTERM` and then `SIGKILL`, and `FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER` pins one of `timeout`, `gtimeout`, or `node` when a host needs a specific one.
-When a spawn does fail before it publishes task metadata, it releases the endpoint it created and returns the Treehouse worktree it acquired rather than leaving either orphaned; only an acquisition that passed the isolated-worktree proof is ever returned.
+When a tmux, zellij, or cmux spawn does fail before it publishes task metadata, it releases the endpoint it created and returns the Treehouse worktree it acquired rather than leaving either orphaned; only an acquisition that passed the isolated-worktree proof is ever returned.
+An Orca spawn removes its own terminal and worktree on the same failure, while a failed Herdr spawn still leaves residue ([herdr-backend.md](herdr-backend.md#active-limits)).
 Run `bin/fm-task-bootstrap.sh --help` for the authoritative declaration modes, fingerprint requirements, marker location, and failure behavior.
 Treehouse's own repository configuration is not a substitute: its repository-level hooks are ignored for safety, and its user-level hooks do not fail worktree acquisition when a command fails.
 
