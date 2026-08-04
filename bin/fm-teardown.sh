@@ -6,6 +6,23 @@
 # bin/fm-issue-closure.sh), then print a backlog-refresh reminder for ship and
 # scout teardowns (a secondmate teardown prints none, since secondmates are not
 # backlog items).
+# Cleanup deletes the task's volatile metadata and status events, so before that
+# happens teardown retains one durable typed completion receipt per task - and
+# per discarded secondmate child - in data/completion-receipts.jsonl.
+# bin/fm-completion-receipt-lib.sh owns the exact schema, its dedupe across a
+# retried teardown, and the locked append; this script owns the two outcome
+# vocabularies it supplies:
+#   terminal_outcome  completed, or discarded for a --force teardown and for
+#                     every discarded secondmate child.
+#   delivery_outcome  discarded (--force), then reported (kind=scout), retired
+#                     (kind=secondmate), local_only (mode=local-only), and for a
+#                     remaining ship task merged when a merge commit is known,
+#                     pr_recorded when only a pr= is, else
+#                     landed_or_remote_preserved.
+# merged needs that commit, so a bounded best-effort GitHub lookup runs after the
+# destructive steps (refresh_completion_merge_commit below); every failure stays
+# an honest unknown rather than an invented fact. A receipt that cannot be
+# written warns and never blocks cleanup or strands a worktree.
 # REFUSES if the worktree holds work that has not LANDED, because cleanup
 # hard-resets/removes the worktree and kills its processes. Work has landed when it is
 # reachable from any remote-tracking branch (a fork counts as a remote, so
