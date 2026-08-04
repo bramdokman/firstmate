@@ -184,7 +184,10 @@ Text is typed once; only Enter is retried.
 On an idle or done native baseline, submit confirmation waits for `working` or `blocked` across a bounded polling window.
 On an already active or unreadable baseline, it falls back to conservative composer clearance.
 A fully unreadable target stops retrying and reports unknown.
-The poll density bounds the residual possibility of an extremely fast complete turn; a missed transition can cause only a redundant Enter on an empty composer, never duplicate message text.
+If every idle-baseline sample misses an extremely fast complete turn, a bounded fallback requires the exact message occurrence count to increase from a pre-send pane capture and the composer to be empty in the same post-send capture.
+An old duplicate cannot satisfy that delta, and `/exit` instead requires an idle native baseline followed by Herdr's exact `agent_not_found` result.
+The fallback is covered with canned Codex-style captures and the shared composer classifier fixtures, but exact transcript wrapping and rendering parity across live Claude, Codex, and OpenCode panes has not been established without an authorized Herdr lifecycle lab.
+Messages containing embedded newlines and captures that scroll the baseline occurrence out of the bounded window fail closed to the existing pending or unknown verdict.
 
 `pane read --lines N` can return empty output when N is below the viewport height.
 The capture owner requests at least 200 lines from Herdr and trims locally to the caller's bound.
