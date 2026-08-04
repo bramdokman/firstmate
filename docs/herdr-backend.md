@@ -184,7 +184,14 @@ Text is typed once; only Enter is retried.
 On an idle or done native baseline, submit confirmation waits for `working` or `blocked` across a bounded polling window.
 On an already active or unreadable baseline, it falls back to conservative composer clearance.
 A fully unreadable target stops retrying and reports unknown.
-The poll density bounds the residual possibility of an extremely fast complete turn; a missed transition can cause only a redundant Enter on an empty composer, never duplicate message text.
+If every idle-baseline sample misses an extremely fast complete turn, a bounded fallback requires the exact message occurrence count to increase from a pre-send pane capture and the composer to be empty in the same post-send capture.
+The occurrence count is compared across the full capture window the adapter already fetches from Herdr (at least 200 lines), because a fast turn renders its whole answer above the composer; composer emptiness is still classified only on that capture's bottom `FM_BACKEND_HERDR_COMPOSER_LINES` (20) rows, the region the structural classifier is verified against.
+An old duplicate cannot satisfy that delta, and `/exit` instead requires that same idle-or-done native baseline followed by Herdr's exact `agent_not_found` result.
+The fallback is covered with canned Codex-style captures and the shared composer classifier fixtures, but exact transcript wrapping and rendering parity across live Claude, Codex, and OpenCode panes has not been established without an authorized Herdr lifecycle lab.
+Messages containing embedded newlines fail closed to the existing pending or unknown verdict.
+So does a turn whose rendered output is taller than the widened capture window, which scrolls this send's own echoed message line out of the post-send capture, and any capture that scrolls the baseline occurrence out of that same window.
+A send that still ends unconfirmed keeps `fm-send.sh`'s existing refusal and adds three fixed diagnostic categories to that error: which baseline path was taken, the distinct native or composer states observed while confirming, and how the postcondition ended, including when it never applied.
+These are category names only and never carry message contents.
 
 `pane read --lines N` can return empty output when N is below the viewport height.
 The capture owner requests at least 200 lines from Herdr and trims locally to the caller's bound.

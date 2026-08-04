@@ -2121,14 +2121,16 @@ fm_backend_herdr_agent_identity_raw() {  # <session> <pane> -> <agent>\t<status>
   printf '%s' "$out" | jq -r '[.result.agent.agent // "", .result.agent.agent_status // ""] | @tsv' 2>/dev/null
 }
 
-fm_backend_herdr_composer_state() {  # <target> -> empty|pending|unknown
-  local target=$1 session pane cap line trimmed found=0 shape="" raw_match="" bordered=0 stripped
+fm_backend_herdr_composer_state() {  # <target> [ansi-capture] -> empty|pending|unknown
+  local target=$1 session pane cap=${2-} line trimmed found=0 shape="" raw_match="" bordered=0 stripped
   local identity agent agent_status row=0 generic_line=0
   fm_backend_herdr_parse_target "$target" || { printf 'unknown'; return 0; }
   session=$FM_BACKEND_HERDR_SESSION
   pane=$FM_BACKEND_HERDR_PANE
-  cap=$(fm_backend_herdr_capture_ansi "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES" 2>/dev/null \
-    || fm_backend_herdr_capture "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES") || { printf 'unknown'; return 0; }
+  if [ "$#" -lt 2 ]; then
+    cap=$(fm_backend_herdr_capture_ansi "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES" 2>/dev/null \
+      || fm_backend_herdr_capture "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES") || { printf 'unknown'; return 0; }
+  fi
   # Structural scan: locate the bottom-most composer row and remember its RAW
   # (styled) bytes. Shape detection runs on the plain row (fm_backend_herdr_strip_ansi
   # keeps ghost text so the border/prompt glyph is still visible); the raw row is
@@ -2269,45 +2271,157 @@ EOF
 #     transition landing partway through a window is still caught before this
 #     loop gives up and sends a needless extra Enter.
 #   - Instant round-trip (a turn starts AND returns to idle between two
-#     polls): unavoidable in the absolute, but bounded by how tightly polls
-#     are packed into the budget; real claude/codex measured first-working
-#     at 90-490ms, comfortably inside a several-hundred-ms, multiply-sampled
-#     window, so this has not been observed in practice. On the (unobserved)
-#     residual chance it happens, the verdict is "pending" and the caller
-#     never retypes - only re-sends Enter, which lands on an already-empty
-#     composer and is a no-op, not a duplicate delivery of <text> (see
-#     fm-send.sh/fm-supervise-daemon.sh: retyping only happens if a caller
-#     re-invokes this function from scratch with the same text after seeing
-#     an error, which is a human/escalation decision, not an automatic
-#     retry).
+#     polls): after the bounded native-state attempts miss the active edge,
+#     confirmation falls back to a pane postcondition bound to a capture from
+#     before this send. It requires one new literal transcript occurrence
+#     anywhere in the adapter's full (>=200-line) capture window and an empty
+#     composer in that same capture's bottom FM_BACKEND_HERDR_COMPOSER_LINES
+#     rows. A pre-existing duplicate therefore cannot confirm a swallowed
+#     Enter, and a turn whose whole answer already rendered above the composer
+#     is still provable. `/exit` instead requires an idle native baseline
+#     followed by Herdr's exact agent-not-found result.
 # Echoes empty|pending|unknown|send-failed, a subset of the proof-carrying
 # submit vocabulary. Empty means confirmed submitted for every backend; how
 # each backend confirms it is an internal decision, and herdr's is no longer
 # literally "the composer read empty".
+fm_backend_herdr_submit_literal_line_count() {  # <ansi-capture> <literal> -> count
+  local cap=$1 literal=$2 plain count=0
+  [ -n "$literal" ] || { printf '0'; return 0; }
+  case "$literal" in *$'\n'*) printf '0'; return 0 ;; esac
+  while IFS= read -r plain; do
+    plain="${plain#"${plain%%[![:space:]]*}"}"
+    plain="${plain%"${plain##*[![:space:]]}"}"
+    if [ "$plain" = "$literal" ] || [ "$plain" = "❯ $literal" ] || [ "$plain" = "› $literal" ]; then
+      count=$((count + 1))
+    fi
+  done < <(printf '%s\n' "$cap" | fm_composer_strip_ansi)
+  printf '%s' "$count"
+}
+
+fm_backend_herdr_agent_terminated() {  # <session> <pane-id>
+  local out
+  out=$(fm_backend_herdr_cli "$1" agent get "$2" 2>/dev/null) || return 1
+  printf '%s' "$out" | jq -e '.error.code == "agent_not_found"' >/dev/null 2>&1
+}
+
+fm_backend_herdr_submit_diag_write() {  # <baseline-path> <observed> <postcondition>
+  local file=${FM_BACKEND_SEND_DIAG_FILE:-}
+  [ -n "$file" ] || return 0
+  printf 'baseline=%s; observed=%s; postcondition=%s' "$1" "${2:-none}" "$3" > "$file"
+}
+
+# The transcript delta is counted over the WHOLE capture the adapter already
+# fetches from herdr (at least 200 lines, see fm_backend_herdr_capture_ansi),
+# because a fast-complete turn renders its entire answer above the composer and
+# can push its own echoed message line far outside a composer-sized tail.
+# Composer emptiness stays classified on the bottom FM_BACKEND_HERDR_COMPOSER_LINES
+# rows of that same capture, which is the only region the structural classifier
+# is verified against.
+fm_backend_herdr_submit_postcondition() {  # <target> <text> <baseline-cap> <baseline-readable>
+  local target=$1 text=$2 baseline_cap=$3 baseline_readable=$4 post_cap before_count after_count composer
+  FM_BACKEND_HERDR_POSTCONDITION=not-proven
+  if [ "$text" = /exit ] && [ "$baseline_readable" -eq 1 ] \
+     && fm_backend_herdr_agent_terminated "$FM_BACKEND_HERDR_SESSION" "$FM_BACKEND_HERDR_PANE"; then
+    FM_BACKEND_HERDR_POSTCONDITION="agent-terminated"
+    return 0
+  fi
+  [ -n "$baseline_cap" ] || { FM_BACKEND_HERDR_POSTCONDITION="baseline-capture-unreadable"; return 1; }
+  post_cap=$(fm_backend_herdr_capture_ansi "$target" 2>/dev/null \
+    || fm_backend_herdr_capture "$target") \
+    || { FM_BACKEND_HERDR_POSTCONDITION=post-capture-unreadable; return 1; }
+  before_count=$(fm_backend_herdr_submit_literal_line_count "$baseline_cap" "$text")
+  after_count=$(fm_backend_herdr_submit_literal_line_count "$post_cap" "$text")
+  if [ "$after_count" -le "$before_count" ]; then
+    FM_BACKEND_HERDR_POSTCONDITION=transcript-not-new
+    return 1
+  fi
+  composer=$(fm_backend_herdr_composer_state "$target" \
+    "$(printf '%s\n' "$post_cap" | tail -n "$FM_BACKEND_HERDR_COMPOSER_LINES")")
+  case "$composer" in
+    empty)
+      FM_BACKEND_HERDR_POSTCONDITION=transcript-new-composer-empty
+      return 0
+      ;;
+    pending) FM_BACKEND_HERDR_POSTCONDITION="composer-pending" ;;
+    *) FM_BACKEND_HERDR_POSTCONDITION="composer-unknown" ;;
+  esac
+  return 1
+}
+
+fm_backend_herdr_submit_observed_add() {  # <category>
+  local category=$1
+  case ",${FM_BACKEND_HERDR_SUBMIT_OBSERVED:-}," in
+    *",$category,"*) return 0 ;;
+  esac
+  if [ -n "${FM_BACKEND_HERDR_SUBMIT_OBSERVED:-}" ]; then
+    FM_BACKEND_HERDR_SUBMIT_OBSERVED="${FM_BACKEND_HERDR_SUBMIT_OBSERVED},$category"
+  else
+    FM_BACKEND_HERDR_SUBMIT_OBSERVED=$category
+  fi
+}
+
+fm_backend_herdr_submit_unconfirmed() {  # <target> <text> <baseline-cap> <baseline-readable> <baseline-path> <verdict> <default-postcondition>
+  local target=$1 text=$2 baseline_cap=$3 baseline_readable=$4 baseline_path=$5 verdict=$6 default_post=$7
+  if [ "$baseline_readable" -eq 1 ] \
+     && fm_backend_herdr_submit_postcondition "$target" "$text" "$baseline_cap" "$baseline_readable"; then
+    printf 'empty'
+    return 0
+  fi
+  fm_backend_herdr_submit_diag_write "$baseline_path" "${FM_BACKEND_HERDR_SUBMIT_OBSERVED:-}" \
+    "${FM_BACKEND_HERDR_POSTCONDITION:-$default_post}"
+  printf '%s' "$verdict"
+}
+
 fm_backend_herdr_send_text_submit() {  # <target> <text> <retries> <enter-sleep> <settle>
-  local target=$1 text=$2 retries=$3 sleep_s=$4 settle=$5 i=0 verdict baseline confirm_sleep
+  local target=$1 text=$2 retries=$3 sleep_s=$4 settle=$5 i=0 verdict baseline baseline_raw
+  local baseline_cap="" baseline_readable=0 baseline_path confirm_sleep category
   fm_backend_herdr_parse_target "$target" || { printf 'unknown'; return 0; }
+  baseline_cap=$(fm_backend_herdr_capture_ansi "$target" 2>/dev/null \
+    || fm_backend_herdr_capture "$target" || true)
   fm_backend_herdr_send_literal "$target" "$text" || { printf 'send-failed'; return 0; }
   sleep "$settle"
-  baseline=$(fm_backend_herdr_classify_submit_agent_status \
-    "$(fm_backend_herdr_agent_status_raw "$FM_BACKEND_HERDR_SESSION" "$FM_BACKEND_HERDR_PANE")")
+  baseline_raw=$(fm_backend_herdr_agent_status_raw "$FM_BACKEND_HERDR_SESSION" "$FM_BACKEND_HERDR_PANE")
+  baseline=$(fm_backend_herdr_classify_submit_agent_status "$baseline_raw")
+  case "$baseline" in
+    idle)
+      baseline_path=native-idle
+      baseline_readable=1
+      ;;
+    busy) baseline_path="composer-active" ;;
+    *) baseline_path="composer-unknown" ;;
+  esac
   confirm_sleep=$(fm_backend_herdr_submit_confirm_budget "$sleep_s")
+  FM_BACKEND_HERDR_SUBMIT_OBSERVED=""
+  FM_BACKEND_HERDR_POSTCONDITION=""
   while :; do
     fm_backend_herdr_send_key "$target" Enter || true
     if [ "$baseline" = idle ]; then
-      verdict=$(fm_backend_herdr_wait_for_working "$FM_BACKEND_HERDR_SESSION" "$FM_BACKEND_HERDR_PANE" \
-        "$confirm_sleep" "$FM_BACKEND_HERDR_SUBMIT_POLLS")
+      fm_backend_herdr_wait_for_working "$FM_BACKEND_HERDR_SESSION" "$FM_BACKEND_HERDR_PANE" \
+        "$confirm_sleep" "$FM_BACKEND_HERDR_SUBMIT_POLLS" >/dev/null
+      verdict=$FM_BACKEND_HERDR_WAIT_RESULT
+      while IFS= read -r category; do
+        [ -n "$category" ] && fm_backend_herdr_submit_observed_add "$category"
+      done < <(printf '%s\n' "$FM_BACKEND_HERDR_WAIT_OBSERVED" | tr ',' '\n')
     else
       sleep "$sleep_s"
       verdict=$(fm_backend_herdr_composer_state "$target")
+      fm_backend_herdr_submit_observed_add "composer-$verdict"
     fi
     case "$verdict" in
       busy) printf 'empty'; return 0 ;;
       empty) printf 'empty'; return 0 ;;
-      unknown) printf 'unknown'; return 0 ;;
+      unknown)
+        fm_backend_herdr_submit_unconfirmed "$target" "$text" "$baseline_cap" "$baseline_readable" \
+          "$baseline_path" unknown not-checked
+        return 0
+        ;;
     esac
     i=$((i + 1))
-    [ "$i" -lt "$retries" ] || { printf 'pending'; return 0; }
+    if [ "$i" -ge "$retries" ]; then
+      fm_backend_herdr_submit_unconfirmed "$target" "$text" "$baseline_cap" "$baseline_readable" \
+        "$baseline_path" pending not-applicable
+      return 0
+    fi
   done
 }
 
@@ -2424,7 +2538,9 @@ fm_backend_herdr_submit_confirm_budget() {  # <caller-budget-seconds>
 }
 
 fm_backend_herdr_wait_for_working() {  # <session> <pane_id> <budget-seconds> <polls>
-  local session=$1 pane_id=$2 budget=$3 polls=${4:-1} i interval raw bs saw_idle=0
+  local session=$1 pane_id=$2 budget=$3 polls=${4:-1} i interval raw bs category saw_idle=0
+  FM_BACKEND_HERDR_WAIT_RESULT=unknown
+  FM_BACKEND_HERDR_WAIT_OBSERVED=""
   case "$polls" in ''|*[!0-9]*|0) polls=1 ;; esac
   interval=$(awk -v b="$budget" -v p="$polls" 'BEGIN { d = p - 1; if (d < 1) d = 1; v = b / d; if (v < 0) v = 0; printf "%.4f", v }' 2>/dev/null)
   case "$interval" in ''|*[!0-9.]*) interval=0 ;; esac
@@ -2434,14 +2550,29 @@ fm_backend_herdr_wait_for_working() {  # <session> <pane_id> <budget-seconds> <p
     fi
     raw=$(fm_backend_herdr_agent_status_raw "$session" "$pane_id")
     bs=$(fm_backend_herdr_classify_submit_agent_status "$raw")
+    case "$raw" in
+      working|blocked|idle|done) category=$raw ;;
+      '') category=unreadable ;;
+      *) category=other ;;
+    esac
+    if [ -z "$FM_BACKEND_HERDR_WAIT_OBSERVED" ]; then
+      FM_BACKEND_HERDR_WAIT_OBSERVED=$category
+    else
+      case ",${FM_BACKEND_HERDR_WAIT_OBSERVED}," in
+        *",$category,"*) : ;;
+        *) FM_BACKEND_HERDR_WAIT_OBSERVED="${FM_BACKEND_HERDR_WAIT_OBSERVED},$category" ;;
+      esac
+    fi
     case "$bs" in
-      busy) printf 'busy'; return 0 ;;
+      busy) FM_BACKEND_HERDR_WAIT_RESULT=busy; printf 'busy'; return 0 ;;
       idle) saw_idle=1 ;;
     esac
   done
   if [ "$saw_idle" -eq 1 ]; then
+    FM_BACKEND_HERDR_WAIT_RESULT=idle
     printf 'idle'
   else
+    FM_BACKEND_HERDR_WAIT_RESULT=unknown
     printf 'unknown'
   fi
 }
