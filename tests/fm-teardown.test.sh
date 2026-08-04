@@ -67,8 +67,8 @@
 # It also owns the durable completion-receipt coverage teardown drives through
 # bin/fm-completion-receipt-lib.sh: the typed record retained before volatile
 # task state is deleted, merge attribution, the honest legacy dispatch-time gap,
-# retry/re-dispatch deduping, and a receipt write failure that must warn without
-# blocking cleanup.
+# retry/re-dispatch deduping, concurrent teardowns sharing one ledger, and a
+# receipt write failure that must warn without blocking cleanup.
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
@@ -763,6 +763,41 @@ test_completion_receipt_dedupes_retry_but_keeps_redispatch() {
   ' "$receipt" >/dev/null \
     || fail "completion-receipt-redispatch: the ledger lost an outcome or misrecorded the new run"
   pass "a retried teardown appends no duplicate while a re-dispatched task id earns its own receipt"
+}
+
+# Several crewmates can finish at once, and every teardown appends to the same
+# private ledger. Concurrent appends must all land whole: no interleaved half
+# line, and no receipt silently lost to a racing writer.
+test_concurrent_teardowns_append_every_receipt_intact() {
+  local shared case_dir name index=0 receipt
+  local pids=()
+  shared="$TMP_ROOT/concurrent-receipts-shared-data"
+  mkdir -p "$shared"
+
+  for name in concurrent-receipt-a concurrent-receipt-b concurrent-receipt-c; do
+    case_dir=$(make_case "$name")
+    write_meta "$case_dir" local-only ship
+    index=$((index + 1))
+    printf 'dispatched_at=2026-08-04T09:10:0%sZ\n' "$index" \
+      >> "$case_dir/state/task-x1.meta"
+    # One shared data/ for all three teardowns: the same ledger, the same lock.
+    rmdir "$case_dir/data"
+    ln -s "$shared" "$case_dir/data"
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" &
+    pids+=("$!")
+  done
+  for name in "${pids[@]}"; do
+    wait "$name" || fail "concurrent-receipts: a concurrent teardown failed"
+  done
+
+  receipt="$shared/completion-receipts.jsonl"
+  jq -e -s '
+    length == 3 and
+    (map(.task_id) | all(. == "task-x1")) and
+    ([.[].dispatch_time] | unique | length) == 3
+  ' "$receipt" >/dev/null \
+    || fail "concurrent-receipts: concurrent teardowns lost or corrupted a receipt"
+  pass "concurrent teardowns each append one intact receipt to the shared ledger"
 }
 
 test_local_only_fork_remote_allows() {
@@ -1970,6 +2005,7 @@ test_teardown_writes_typed_completion_receipt
 test_completion_receipt_write_failure_does_not_block_teardown
 test_legacy_task_receipt_does_not_invent_dispatch_time
 test_completion_receipt_dedupes_retry_but_keeps_redispatch
+test_concurrent_teardowns_append_every_receipt_intact
 test_teardown_prompts_tasks_axi_done_when_compatible
 test_teardown_manual_backend_prompts_hand_edit_even_when_tasks_axi_present
 test_local_only_truly_unpushed_refuses
