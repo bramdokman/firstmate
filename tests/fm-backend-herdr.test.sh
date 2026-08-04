@@ -2203,7 +2203,7 @@ test_wait_for_working_catches_a_slow_transition_mid_window() {
   # Two idle samples, then working on the third - a transition that would be
   # MISSED by a single check-at-the-end design (the old composer approach's
   # shape) but is caught here because the budget is sampled repeatedly.
-  printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/3.out"
+  printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/1.out"
   printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/2.out"
   printf '{"result":{"agent":{"agent_status":"working"}}}\n' > "$resp/3.out"
   fb=$(make_herdr_fakebin "$dir")
@@ -2218,7 +2218,7 @@ test_wait_for_working_catches_a_slow_transition_mid_window() {
 test_wait_for_working_samples_budget_endpoint_without_final_sleep() {
   local dir log resp fb out sleep_log sleeps
   dir="$TMP_ROOT/wait-budget-endpoint"; mkdir -p "$dir/responses"; log="$dir/log"; resp="$dir/responses"; sleep_log="$dir/sleeps"; : > "$log"; : > "$sleep_log"
-  printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/3.out"
+  printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/1.out"
   printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/2.out"
   printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/3.out"
   printf '{"result":{"agent":{"agent_status":"idle"}}}\n' > "$resp/4.out"
@@ -2369,6 +2369,64 @@ test_send_text_submit_confirms_fast_complete_from_bounded_postcondition() {
   [ "$literal_count" -eq 1 ] || fail "fast-complete confirmation retyped the message $literal_count times"
   [ "$enter_count" -eq 3 ] || fail "fast-complete confirmation changed the bounded Enter-only retry count, got $enter_count"
   pass "fm_backend_herdr_send_text_submit: bounded postcondition confirms a fast-complete turn missed by every native status sample"
+}
+
+# Companion regression for a TALL fast-complete turn (a slash command, an
+# instant refusal, a tool-call block): the whole answer is already rendered
+# above the composer, so this send's own echoed message line sits far outside a
+# composer-sized tail. The transcript delta must therefore be counted over the
+# full capture the adapter already fetches from herdr, while composer emptiness
+# stays classified on the bottom FM_BACKEND_HERDR_COMPOSER_LINES rows.
+test_send_text_submit_confirms_tall_fast_complete_turn() {
+  local dir log out enter_count literal_count
+  dir="$TMP_ROOT/submit-tall-fast-complete"; mkdir -p "$dir"; log="$dir/log"; : > "$log"
+  out=$( FM_HERDR_TEST_LOG="$log" FM_BACKEND_HERDR_SUBMIT_POLLS=6 \
+    bash -c '
+      . "$0/bin/backends/herdr.sh"
+      fm_backend_herdr_parse_target() {
+        FM_BACKEND_HERDR_SESSION=default
+        FM_BACKEND_HERDR_PANE=w1:p2
+      }
+      fm_backend_herdr_send_literal() {
+        printf "literal\n" >> "$FM_HERDR_TEST_LOG"
+      }
+      fm_backend_herdr_send_key() {
+        printf "enter\n" >> "$FM_HERDR_TEST_LOG"
+      }
+      fm_backend_herdr_agent_status_raw() {
+        if [ ! -e "$FM_HERDR_TEST_LOG.baseline" ]; then
+          : > "$FM_HERDR_TEST_LOG.baseline"
+          printf "idle"
+        else
+          printf "done"
+        fi
+      }
+      fm_backend_herdr_capture_ansi() {
+        capture_count=$(cat "$FM_HERDR_TEST_LOG.capture-count" 2>/dev/null || printf 0)
+        capture_count=$((capture_count + 1))
+        printf "%s\n" "$capture_count" > "$FM_HERDR_TEST_LOG.capture-count"
+        printf "old transcript\n• previous completion\n"
+        if [ "$capture_count" -gt 1 ]; then
+          printf "› tall task\n"
+          row=1
+          while [ "$row" -le 30 ]; do
+            printf "  rendered answer row %s\n" "$row"
+            row=$((row + 1))
+          done
+        fi
+        printf "\n  › \x1b[2mType a message\x1b[0m\n"
+      }
+      fm_backend_herdr_capture() {
+        fm_backend_herdr_capture_ansi "$@"
+      }
+      fm_backend_herdr_send_text_submit default:w1:p2 "tall task" 3 0 0
+    ' "$ROOT" )
+  [ "$out" = empty ] || fail "a tall fast-complete turn, whose echoed message scrolled above the bottom-20-row composer window, should still be confirmed, got '$out'"
+  literal_count=$(grep -c '^literal$' "$log")
+  enter_count=$(grep -c '^enter$' "$log")
+  [ "$literal_count" -eq 1 ] || fail "tall fast-complete confirmation retyped the message $literal_count times"
+  [ "$enter_count" -eq 3 ] || fail "tall fast-complete confirmation changed the bounded Enter-only retry count, got $enter_count"
+  pass "fm_backend_herdr_send_text_submit: the transcript delta is counted over the full fetched capture, so a tall fast-complete turn is still proven"
 }
 
 test_send_text_submit_old_duplicate_does_not_false_confirm() {
@@ -3341,6 +3399,7 @@ test_wait_for_working_returns_unknown_when_never_readable
 test_wait_for_working_treats_blocked_as_submit_active
 test_send_text_submit_detects_landed_send
 test_send_text_submit_confirms_fast_complete_from_bounded_postcondition
+test_send_text_submit_confirms_tall_fast_complete_turn
 test_send_text_submit_old_duplicate_does_not_false_confirm
 test_send_text_submit_exit_confirms_exact_agent_termination
 test_send_text_submit_detects_swallowed_enter

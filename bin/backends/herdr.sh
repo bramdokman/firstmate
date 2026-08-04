@@ -2273,10 +2273,13 @@ EOF
 #   - Instant round-trip (a turn starts AND returns to idle between two
 #     polls): after the bounded native-state attempts miss the active edge,
 #     confirmation falls back to a pane postcondition bound to a capture from
-#     before this send. It requires one new literal transcript occurrence and
-#     an empty composer in the same post-send capture. A pre-existing duplicate
-#     therefore cannot confirm a swallowed Enter. `/exit` instead requires an
-#     idle native baseline followed by Herdr's exact agent-not-found result.
+#     before this send. It requires one new literal transcript occurrence
+#     anywhere in the adapter's full (>=200-line) capture window and an empty
+#     composer in that same capture's bottom FM_BACKEND_HERDR_COMPOSER_LINES
+#     rows. A pre-existing duplicate therefore cannot confirm a swallowed
+#     Enter, and a turn whose whole answer already rendered above the composer
+#     is still provable. `/exit` instead requires an idle native baseline
+#     followed by Herdr's exact agent-not-found result.
 # Echoes empty|pending|unknown|send-failed, a subset of the proof-carrying
 # submit vocabulary. Empty means confirmed submitted for every backend; how
 # each backend confirms it is an internal decision, and herdr's is no longer
@@ -2308,6 +2311,13 @@ fm_backend_herdr_submit_diag_write() {  # <baseline-path> <observed> <postcondit
   printf 'baseline=%s; observed=%s; postcondition=%s' "$1" "${2:-none}" "$3" > "$file"
 }
 
+# The transcript delta is counted over the WHOLE capture the adapter already
+# fetches from herdr (at least 200 lines, see fm_backend_herdr_capture_ansi),
+# because a fast-complete turn renders its entire answer above the composer and
+# can push its own echoed message line far outside a composer-sized tail.
+# Composer emptiness stays classified on the bottom FM_BACKEND_HERDR_COMPOSER_LINES
+# rows of that same capture, which is the only region the structural classifier
+# is verified against.
 fm_backend_herdr_submit_postcondition() {  # <target> <text> <baseline-cap> <baseline-readable>
   local target=$1 text=$2 baseline_cap=$3 baseline_readable=$4 post_cap before_count after_count composer
   FM_BACKEND_HERDR_POSTCONDITION=not-proven
@@ -2317,8 +2327,8 @@ fm_backend_herdr_submit_postcondition() {  # <target> <text> <baseline-cap> <bas
     return 0
   fi
   [ -n "$baseline_cap" ] || { FM_BACKEND_HERDR_POSTCONDITION="baseline-capture-unreadable"; return 1; }
-  post_cap=$(fm_backend_herdr_capture_ansi "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES" 2>/dev/null \
-    || fm_backend_herdr_capture "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES") \
+  post_cap=$(fm_backend_herdr_capture_ansi "$target" 2>/dev/null \
+    || fm_backend_herdr_capture "$target") \
     || { FM_BACKEND_HERDR_POSTCONDITION=post-capture-unreadable; return 1; }
   before_count=$(fm_backend_herdr_submit_literal_line_count "$baseline_cap" "$text")
   after_count=$(fm_backend_herdr_submit_literal_line_count "$post_cap" "$text")
@@ -2326,7 +2336,8 @@ fm_backend_herdr_submit_postcondition() {  # <target> <text> <baseline-cap> <bas
     FM_BACKEND_HERDR_POSTCONDITION=transcript-not-new
     return 1
   fi
-  composer=$(fm_backend_herdr_composer_state "$target" "$post_cap")
+  composer=$(fm_backend_herdr_composer_state "$target" \
+    "$(printf '%s\n' "$post_cap" | tail -n "$FM_BACKEND_HERDR_COMPOSER_LINES")")
   case "$composer" in
     empty)
       FM_BACKEND_HERDR_POSTCONDITION=transcript-new-composer-empty
@@ -2350,12 +2361,24 @@ fm_backend_herdr_submit_observed_add() {  # <category>
   fi
 }
 
+fm_backend_herdr_submit_unconfirmed() {  # <target> <text> <baseline-cap> <baseline-readable> <baseline-path> <verdict> <default-postcondition>
+  local target=$1 text=$2 baseline_cap=$3 baseline_readable=$4 baseline_path=$5 verdict=$6 default_post=$7
+  if [ "$baseline_readable" -eq 1 ] \
+     && fm_backend_herdr_submit_postcondition "$target" "$text" "$baseline_cap" "$baseline_readable"; then
+    printf 'empty'
+    return 0
+  fi
+  fm_backend_herdr_submit_diag_write "$baseline_path" "${FM_BACKEND_HERDR_SUBMIT_OBSERVED:-}" \
+    "${FM_BACKEND_HERDR_POSTCONDITION:-$default_post}"
+  printf '%s' "$verdict"
+}
+
 fm_backend_herdr_send_text_submit() {  # <target> <text> <retries> <enter-sleep> <settle>
   local target=$1 text=$2 retries=$3 sleep_s=$4 settle=$5 i=0 verdict baseline baseline_raw
   local baseline_cap="" baseline_readable=0 baseline_path confirm_sleep category
   fm_backend_herdr_parse_target "$target" || { printf 'unknown'; return 0; }
-  baseline_cap=$(fm_backend_herdr_capture_ansi "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES" 2>/dev/null \
-    || fm_backend_herdr_capture "$target" "$FM_BACKEND_HERDR_COMPOSER_LINES" || true)
+  baseline_cap=$(fm_backend_herdr_capture_ansi "$target" 2>/dev/null \
+    || fm_backend_herdr_capture "$target" || true)
   fm_backend_herdr_send_literal "$target" "$text" || { printf 'send-failed'; return 0; }
   sleep "$settle"
   baseline_raw=$(fm_backend_herdr_agent_status_raw "$FM_BACKEND_HERDR_SESSION" "$FM_BACKEND_HERDR_PANE")
@@ -2370,6 +2393,7 @@ fm_backend_herdr_send_text_submit() {  # <target> <text> <retries> <enter-sleep>
   esac
   confirm_sleep=$(fm_backend_herdr_submit_confirm_budget "$sleep_s")
   FM_BACKEND_HERDR_SUBMIT_OBSERVED=""
+  FM_BACKEND_HERDR_POSTCONDITION=""
   while :; do
     fm_backend_herdr_send_key "$target" Enter || true
     if [ "$baseline" = idle ]; then
@@ -2388,27 +2412,15 @@ fm_backend_herdr_send_text_submit() {  # <target> <text> <retries> <enter-sleep>
       busy) printf 'empty'; return 0 ;;
       empty) printf 'empty'; return 0 ;;
       unknown)
-        if [ "$baseline" = idle ] \
-           && fm_backend_herdr_submit_postcondition "$target" "$text" "$baseline_cap" "$baseline_readable"; then
-          printf 'empty'
-        else
-          fm_backend_herdr_submit_diag_write "$baseline_path" "$FM_BACKEND_HERDR_SUBMIT_OBSERVED" \
-            "${FM_BACKEND_HERDR_POSTCONDITION:-not-checked}"
-          printf 'unknown'
-        fi
+        fm_backend_herdr_submit_unconfirmed "$target" "$text" "$baseline_cap" "$baseline_readable" \
+          "$baseline_path" unknown not-checked
         return 0
         ;;
     esac
     i=$((i + 1))
     if [ "$i" -ge "$retries" ]; then
-      if [ "$baseline" = idle ] \
-         && fm_backend_herdr_submit_postcondition "$target" "$text" "$baseline_cap" "$baseline_readable"; then
-        printf 'empty'
-      else
-        fm_backend_herdr_submit_diag_write "$baseline_path" "$FM_BACKEND_HERDR_SUBMIT_OBSERVED" \
-          "${FM_BACKEND_HERDR_POSTCONDITION:-not-applicable}"
-        printf 'pending'
-      fi
+      fm_backend_herdr_submit_unconfirmed "$target" "$text" "$baseline_cap" "$baseline_readable" \
+        "$baseline_path" pending not-applicable
       return 0
     fi
   done

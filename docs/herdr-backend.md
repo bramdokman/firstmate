@@ -185,9 +185,11 @@ On an idle or done native baseline, submit confirmation waits for `working` or `
 On an already active or unreadable baseline, it falls back to conservative composer clearance.
 A fully unreadable target stops retrying and reports unknown.
 If every idle-baseline sample misses an extremely fast complete turn, a bounded fallback requires the exact message occurrence count to increase from a pre-send pane capture and the composer to be empty in the same post-send capture.
+The occurrence count is compared across the full capture window the adapter already fetches from Herdr (at least 200 lines), because a fast turn renders its whole answer above the composer; composer emptiness is still classified only on that capture's bottom `FM_BACKEND_HERDR_COMPOSER_LINES` (20) rows, the region the structural classifier is verified against.
 An old duplicate cannot satisfy that delta, and `/exit` instead requires an idle native baseline followed by Herdr's exact `agent_not_found` result.
 The fallback is covered with canned Codex-style captures and the shared composer classifier fixtures, but exact transcript wrapping and rendering parity across live Claude, Codex, and OpenCode panes has not been established without an authorized Herdr lifecycle lab.
-Messages containing embedded newlines and captures that scroll the baseline occurrence out of the bounded window fail closed to the existing pending or unknown verdict.
+Messages containing embedded newlines fail closed to the existing pending or unknown verdict.
+So does a turn whose rendered output is taller than the widened capture window, which scrolls this send's own echoed message line out of the post-send capture, and any capture that scrolls the baseline occurrence out of that same window.
 
 `pane read --lines N` can return empty output when N is below the viewport height.
 The capture owner requests at least 200 lines from Herdr and trims locally to the caller's bound.
