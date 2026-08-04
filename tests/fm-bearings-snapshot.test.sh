@@ -1889,6 +1889,36 @@ EOF
   pass "main and secondmate captain actionability use the same blocker readiness"
 }
 
+test_large_backlog_completes_end_to_end() {
+  local home fakebin filler json fixture_bytes i=1
+  home=$(make_home large-backlog)
+  : > "$home/data/secondmates.md"
+  printf '## In flight\n\n## Queued\n' > "$home/data/backlog.md"
+  filler=$(printf '%0360d' 0 | tr '0' x)
+  while [ "$i" -le 400 ]; do
+    printf -- '- [ ] queued-%03d - Large fixture item %03d %s (repo: firstmate) (kind: ship)\n' \
+      "$i" "$i" "$filler" >> "$home/data/backlog.md"
+    i=$((i + 1))
+  done
+  printf '\n## Done\n' >> "$home/data/backlog.md"
+  fixture_bytes=$(LC_ALL=C wc -c < "$home/data/backlog.md" | tr -d ' ')
+  [ "$fixture_bytes" -gt $((128 * 1024)) ] \
+    || fail "large backlog fixture was only $fixture_bytes bytes"
+
+  fakebin=$(make_fakebin "$home")
+  : > "$home/net.log"
+  json=$(run "$home" "$fakebin" --json --all-decisions --all-queued)
+  printf '%s' "$json" | jq -e '
+    .schema == "fm-bearings.v1"
+      and (.gates | length) == 400
+      and ([.gates[].id] | first) == "queued-001"
+      and ([.gates[].id] | last) == "queued-400"
+  ' >/dev/null || fail "large backlog did not complete through the full Bearings projection"
+  [ ! -s "$home/net.log" ] || fail "large local snapshot made a network call: $(cat "$home/net.log")"
+  pass "a >128 KiB backlog completes through the full Bearings projection"
+}
+
+test_large_backlog_completes_end_to_end
 test_domain_alpha_stale_parent_event_does_not_become_current_work
 test_gnu_stat_uses_file_formats_without_bsd_fallback_pollution
 test_parent_activity_evidence_is_bounded_and_disclosed
