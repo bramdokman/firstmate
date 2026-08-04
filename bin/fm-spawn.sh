@@ -262,6 +262,12 @@ fi
 ORCA_ABORT_CLEANUP=0
 ORCA_WORKTREE_ID=
 ORCA_TERMINAL=
+## tmux/zellij/cmux counterpart to the orca and herdr abort paths: the endpoint
+## is created and the treehouse worktree leased well before state/<id>.meta is
+## published, and fm-teardown refuses a task with no meta. Without this, an
+## ordinary failure between the two (a settle timeout, a failed project
+## bootstrap) orphans a window and a leased pool slot with no supported cleanup.
+ENDPOINT_ABORT_CLEANUP=0
 HERDR_PROJECTION_ABORT_CLEANUP=0
 HERDR_PROJECTION_ABORT_SESSION=
 HERDR_PROJECTION_ABORT_TASK_PANE=
@@ -309,6 +315,19 @@ spawn_abort_cleanup() {
   if [ "$HERDR_PRESENTATION_ORDER_LOCK_HELD" = 1 ]; then
     HERDR_PRESENTATION_ORDER_LOCK_HELD=0
     fm_lock_release "$HERDR_PRESENTATION_ORDER_LOCK" || true
+  fi
+  if [ "$ENDPOINT_ABORT_CLEANUP" = 1 ]; then
+    ENDPOINT_ABORT_CLEANUP=0
+    if [ -n "${T:-}" ]; then
+      fm_backend_kill "$BACKEND" "$T" "${ZELLIJ_TAB_ID:-}" "$W" 2>/dev/null || true
+    fi
+    # Only a worktree this spawn actually leased is returned: WT is empty until
+    # `treehouse get` settles, and never the project checkout itself.
+    if [ -n "${WT:-}" ] && [ "$WT" != "$PROJ_ABS" ] && [ -d "$WT" ] \
+       && command -v treehouse >/dev/null 2>&1; then
+      ( cd "$PROJ_ABS" && treehouse return --force "$WT" ) >/dev/null 2>&1 \
+        || echo "warning: could not return leased worktree $WT after a failed spawn of $ID; return it manually" >&2
+    fi
   fi
   if [ "$ORCA_ABORT_CLEANUP" = 1 ]; then
     ORCA_ABORT_CLEANUP=0
@@ -1204,6 +1223,15 @@ EOF
     T="$ORCA_TERMINAL"
     ;;
 esac
+# Every create_task above refuses an existing endpoint, so the one now in $T was
+# created by this process and is safe to release on abort. Orca and herdr own
+# their own abort paths; secondmate spawns lease no task worktree and are left
+# to their existing lifecycle.
+case "$BACKEND" in
+  tmux|zellij|cmux)
+    [ "$KIND" = secondmate ] || ENDPOINT_ABORT_CLEANUP=1
+    ;;
+esac
 # #134 robustness: only tmux needs a worktree-detection target distinct from $T -
 # its rename-safe stable window id, set as WT_TARGET=$WID in the tmux branch above.
 # Every other backend addresses its pane/surface by the id already in $T, so default
@@ -1657,6 +1685,8 @@ META_WINDOW=$T
   fi
 } > "$STATE/$ID.meta"
 [ "$BACKEND" = orca ] && ORCA_ABORT_CLEANUP=0
+# Published metadata makes the endpoint and worktree fm-teardown's to release.
+ENDPOINT_ABORT_CLEANUP=0
 
 sq_brief=$(shell_quote "$BRIEF")
 sq_turnend=$(shell_quote "$TURNEND")

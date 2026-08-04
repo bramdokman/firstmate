@@ -194,9 +194,13 @@ The full cmux home label also includes a short hash of the resolved `FM_ROOT` pa
 ## Project task bootstrap (.firstmate/bootstrap)
 
 A project can opt into task environment preparation by tracking an executable `.firstmate/bootstrap` declaration.
+The declaration must be tracked by Git and must not be a symbolic link or sit behind a symlinked `.firstmate` directory, so what runs is always reviewable content belonging to the worktree.
 `fm-spawn.sh` runs the declaration through `fm-task-bootstrap.sh` after proving the task has an isolated worktree and before launching any ship or scout worker on every runtime backend.
 The project owns its prerequisite commands and staleness inputs, so Firstmate has no package-manager, generator, lockfile, or toolchain-specific branches.
 A worktree-specific success fingerprint makes a matching preserved environment a cheap skip, while a malformed declaration or failed prerequisite stops the spawn loudly before task metadata and worker launch.
+Declarations must be noninteractive: every mode runs with stdin from `/dev/null` and under a wall-clock bound, so a prompt or a stalled download fails the spawn instead of blocking the primary session and the rest of a serialized batch.
+The bound defaults to 900 seconds, and a project overrules it by handling the optional `.firstmate/bootstrap timeout` mode and printing a positive whole number of seconds.
+When a spawn does fail before it publishes task metadata, it releases the endpoint it created and returns the leased Treehouse worktree rather than leaving either orphaned.
 Run `bin/fm-task-bootstrap.sh --help` for the authoritative declaration modes, fingerprint requirements, marker location, and failure behavior.
 Treehouse's own repository configuration is not a substitute: its repository-level hooks are ignored for safety, and its user-level hooks do not fail worktree acquisition when a command fails.
 
