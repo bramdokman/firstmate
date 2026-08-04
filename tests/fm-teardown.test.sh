@@ -639,11 +639,11 @@ yolo=off
 dispatched_at=2026-08-04T09:10:11Z
 EOF
   cat > "$case_dir/state/task-x1.status" <<'EOF'
-working: implementation started
-needs-decision: choose an interface [key=interface]
-resolved: interface selected [key=interface]
-blocked: dependency unavailable [key=dependency]
-resolved: dependency restored [key=dependency]
+working [key=interface]: implementation started
+needs-decision [key=interface]: choose an interface
+resolved [key=interface]: interface selected
+blocked [key=dependency]: dependency unavailable
+resolved [key=dependency]: dependency restored
 paused: waiting on CI
 failed: first validation failed
 done: validation passed
@@ -719,6 +719,44 @@ test_legacy_task_receipt_does_not_invent_dispatch_time() {
   ' "$receipt" >/dev/null \
     || fail "completion-receipt-legacy-dispatch: receipt invented a legacy dispatch time"
   pass "legacy task receipts name the unavailable dispatch-time gap instead of using mtime"
+}
+
+test_completion_receipt_dedupes_retry_but_keeps_redispatch() {
+  local case_dir receipt
+  case_dir=$(make_case completion-receipt-retry)
+  write_meta "$case_dir" local-only ship
+  printf 'dispatched_at=%s\n' 2026-08-04T09:10:11Z >> "$case_dir/state/task-x1.meta"
+  printf '%s\n' \
+    '{"schema_version":1,"task_id":"task-x1","dispatch_time":"2026-08-04T09:10:11Z"}' \
+    > "$case_dir/data/completion-receipts.jsonl"
+
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "completion-receipt-retry: teardown failed"
+
+  receipt="$case_dir/data/completion-receipts.jsonl"
+  [ "$(wc -l < "$receipt" | tr -d ' ')" -eq 1 ] \
+    || fail "completion-receipt-retry: a retried teardown of the same dispatch appended a duplicate"
+
+  case_dir=$(make_case completion-receipt-redispatch)
+  write_meta "$case_dir" local-only ship
+  printf 'dispatched_at=%s\n' 2026-08-04T11:22:33Z >> "$case_dir/state/task-x1.meta"
+  printf '%s\n' \
+    '{"schema_version":1,"task_id":"task-x1","dispatch_time":"2026-08-04T09:10:11Z","terminal_outcome":"discarded"}' \
+    > "$case_dir/data/completion-receipts.jsonl"
+
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "completion-receipt-redispatch: teardown failed"
+
+  receipt="$case_dir/data/completion-receipts.jsonl"
+  [ "$(wc -l < "$receipt" | tr -d ' ')" -eq 2 ] \
+    || fail "completion-receipt-redispatch: the re-dispatched run did not earn its own receipt"
+  jq -e -s '
+    .[0].terminal_outcome == "discarded" and
+    .[1].dispatch_time == "2026-08-04T11:22:33Z" and
+    .[1].terminal_outcome == "completed"
+  ' "$receipt" >/dev/null \
+    || fail "completion-receipt-redispatch: the ledger lost an outcome or misrecorded the new run"
+  pass "a retried teardown appends no duplicate while a re-dispatched task id earns its own receipt"
 }
 
 test_local_only_fork_remote_allows() {
@@ -1925,6 +1963,7 @@ test_local_only_fork_remote_allows
 test_teardown_writes_typed_completion_receipt
 test_completion_receipt_write_failure_does_not_block_teardown
 test_legacy_task_receipt_does_not_invent_dispatch_time
+test_completion_receipt_dedupes_retry_but_keeps_redispatch
 test_teardown_prompts_tasks_axi_done_when_compatible
 test_teardown_manual_backend_prompts_hand_edit_even_when_tasks_axi_present
 test_local_only_truly_unpushed_refuses

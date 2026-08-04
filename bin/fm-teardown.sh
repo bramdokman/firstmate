@@ -161,7 +161,7 @@ T_ORCA=
 "$FM_ROOT/bin/fm-guard.sh" || true
 HOME_PATH=$(grep '^home=' "$META" | cut -d= -f2- || true)
 PR_URL=$(grep '^pr=' "$META" | tail -1 | cut -d= -f2- || true)
-RECEIPT_MERGED_COMMIT=$(grep '^merged_commit=' "$META" | tail -1 | cut -d= -f2- || true)
+RECEIPT_MERGED_COMMIT=
 # tasktmp is recorded by fm-spawn for tasks that set up a per-task temp root
 # (/tmp/fm-<id>/); absent for tasks spawned before that change, so tolerate empty.
 TASK_TMP=$(grep '^tasktmp=' "$META" | cut -d= -f2- || true)
@@ -709,11 +709,31 @@ pr_is_merged() {
   merged_commit_contains_branch_change "$target" "$merge_sha"
 }
 
+# Last-chance merge attribution for the completion receipt. It runs after the
+# destructive cleanup steps, so the lookup is bounded, never prompts, and treats
+# every failure as "unknown" instead of stranding a half-torn-down task. GitHub
+# only: a merged GitLab merge request leaves merged_commit null in the receipt
+# rather than having a commit invented for it.
+COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS=${FM_COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS:-15}
+
 refresh_completion_merge_commit() {
-  local view state merge_sha
+  local view state merge_sha runner=
   [ -n "$PR_URL" ] || return 0
   [ -z "$RECEIPT_MERGED_COMMIT" ] || return 0
-  view=$(cd "$PROJ" && gh pr view "$PR_URL" --json state,mergeCommit 2>/dev/null) || return 0
+  command -v gh >/dev/null 2>&1 || return 0
+  if command -v timeout >/dev/null 2>&1; then
+    runner=timeout
+  elif command -v gtimeout >/dev/null 2>&1; then
+    runner=gtimeout
+  fi
+  if [ -n "$runner" ]; then
+    view=$(cd "$PROJ" && GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
+      "$runner" "$COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS" \
+      gh pr view "$PR_URL" --json state,mergeCommit 2>/dev/null </dev/null) || return 0
+  else
+    view=$(cd "$PROJ" && GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
+      gh pr view "$PR_URL" --json state,mergeCommit 2>/dev/null </dev/null) || return 0
+  fi
   state=$(printf '%s' "$view" | jq -r '.state // empty' 2>/dev/null) || return 0
   case "$state" in MERGED|merged) ;; *) return 0 ;; esac
   merge_sha=$(printf '%s' "$view" | jq -r '.mergeCommit.oid // empty' 2>/dev/null) || return 0
@@ -1466,7 +1486,7 @@ cleanup_firstmate_home_children() {
     retire_busy_state "$sub_state" "$child_id" "$child_busy_gen" || return 1
     write_completion_receipt_best_effort "$child_id" "$child_meta" \
       "$sub_state/$child_id.status" discarded discarded \
-      "$(meta_value "$child_meta" pr)" "$(meta_value "$child_meta" merged_commit)"
+      "$(meta_value "$child_meta" pr)" ""
     rm -f "$sub_state/$child_id.status" "$sub_state/$child_id.turn-ended" \
       "$sub_state/$child_id.meta" "$sub_state/$child_id.pi-ext.ts" \
       "$sub_state/$child_id.grok-turnend-token" "$sub_state/$child_id.kimi-turnend-token"
