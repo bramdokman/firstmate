@@ -43,18 +43,27 @@ fm_completion_receipt_meta_get() {
   awk -v prefix="$key=" 'index($0, prefix) == 1 { value = substr($0, length(prefix) + 1) } END { print value }' "$meta"
 }
 
-fm_completion_receipt_status_count() {
-  local status=$1 state=$2 line count=0
-  if [ ! -f "$status" ]; then
-    printf '0\n'
-    return 0
+# One pass over the event log for every counted verb, printed in schema order as
+# "<needs-decision> <blocked> <paused> <resolved> <failed>". A missing status file
+# counts as all zeros.
+fm_completion_receipt_status_counts() {
+  local status=$1 line verb
+  local needs_decision=0 blocked=0 paused=0 resolved=0 failed=0
+  if [ -f "$status" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      [ -n "$line" ] || continue
+      verb=$(status_line_verb "$line")
+      case "$verb" in
+        needs-decision) needs_decision=$((needs_decision + 1)) ;;
+        blocked) blocked=$((blocked + 1)) ;;
+        paused) paused=$((paused + 1)) ;;
+        resolved) resolved=$((resolved + 1)) ;;
+        failed) failed=$((failed + 1)) ;;
+      esac
+    done < "$status"
   fi
-  while IFS= read -r line || [ -n "$line" ]; do
-    [ -n "$line" ] || continue
-    [ "$(status_line_verb "$line")" = "$state" ] || continue
-    count=$((count + 1))
-  done < "$status"
-  printf '%s\n' "$count"
+  printf '%s %s %s %s %s\n' \
+    "$needs_decision" "$blocked" "$paused" "$resolved" "$failed"
 }
 
 # 0 when the ledger already holds this task's receipt for the same dispatch
@@ -73,7 +82,8 @@ fm_completion_receipt_append() (
   local data=$1 id=$2 meta=$3 status=$4 teardown_time=$5 terminal_outcome=$6
   local delivery_outcome=$7 pr_url=$8 merged_commit=$9 ledger lock attempt=0 tmp
   local kind project worktree endpoint_id mode harness model effort backend yolo
-  local dispatch_time dispatch_time_source pr_head needs_decision blocked paused resolved failed
+  local dispatch_time dispatch_time_source pr_head counts
+  local needs_decision blocked paused resolved failed
 
   [ -d "$data" ] || return 1
   [ -f "$meta" ] && [ ! -L "$meta" ] || return 1
@@ -114,11 +124,8 @@ fm_completion_receipt_append() (
     dispatch_time_source=unavailable_legacy_meta
   fi
   pr_head=$(fm_completion_receipt_meta_get "$meta" pr_head)
-  needs_decision=$(fm_completion_receipt_status_count "$status" needs-decision)
-  blocked=$(fm_completion_receipt_status_count "$status" blocked)
-  paused=$(fm_completion_receipt_status_count "$status" paused)
-  resolved=$(fm_completion_receipt_status_count "$status" resolved)
-  failed=$(fm_completion_receipt_status_count "$status" failed)
+  counts=$(fm_completion_receipt_status_counts "$status")
+  read -r needs_decision blocked paused resolved failed <<<"$counts"
 
   umask 077
   tmp=$(mktemp "$data/.completion-receipt.XXXXXXXXXX") || return 1
