@@ -268,6 +268,10 @@ ORCA_TERMINAL=
 ## ordinary failure between the two (a settle timeout, a failed project
 ## bootstrap) orphans a window and a leased pool slot with no supported cleanup.
 ENDPOINT_ABORT_CLEANUP=0
+## Set only once validate_spawn_worktree has positively accepted the acquired
+## path, so an unvalidated pane reading (a shell that never entered a worktree)
+## is never handed to `treehouse return --force`.
+ENDPOINT_ABORT_WORKTREE=
 HERDR_PROJECTION_ABORT_CLEANUP=0
 HERDR_PROJECTION_ABORT_SESSION=
 HERDR_PROJECTION_ABORT_TASK_PANE=
@@ -321,12 +325,11 @@ spawn_abort_cleanup() {
     if [ -n "${T:-}" ]; then
       fm_backend_kill "$BACKEND" "$T" "${ZELLIJ_TAB_ID:-}" "$W" 2>/dev/null || true
     fi
-    # Only a worktree this spawn actually leased is returned: WT is empty until
-    # `treehouse get` settles, and never the project checkout itself.
-    if [ -n "${WT:-}" ] && [ "$WT" != "$PROJ_ABS" ] && [ -d "$WT" ] \
-       && command -v treehouse >/dev/null 2>&1; then
-      ( cd "$PROJ_ABS" && treehouse return --force "$WT" ) >/dev/null 2>&1 \
-        || echo "warning: could not return leased worktree $WT after a failed spawn of $ID; return it manually" >&2
+    # Only the exact acquisition validate_spawn_worktree accepted is returned,
+    # never a bare pane reading that merely differed from the project path.
+    if [ -n "${ENDPOINT_ABORT_WORKTREE:-}" ] && command -v treehouse >/dev/null 2>&1; then
+      ( cd "$PROJ_ABS" && treehouse return --force "$ENDPOINT_ABORT_WORKTREE" ) >/dev/null 2>&1 \
+        || echo "warning: could not return leased worktree $ENDPOINT_ABORT_WORKTREE after a failed spawn of $ID; return it manually" >&2
     fi
   fi
   if [ "$ORCA_ABORT_CLEANUP" = 1 ]; then
@@ -1373,6 +1376,7 @@ if [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   fi
 
   validate_spawn_worktree "treehouse get" "$T"
+  ENDPOINT_ABORT_WORKTREE=$WT
 fi
 
 if [ "$KIND" != secondmate ]; then

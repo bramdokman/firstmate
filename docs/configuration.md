@@ -200,7 +200,9 @@ The project owns its prerequisite commands and staleness inputs, so Firstmate ha
 A worktree-specific success fingerprint makes a matching preserved environment a cheap skip, while a malformed declaration or failed prerequisite stops the spawn loudly before task metadata and worker launch.
 Declarations must be noninteractive: every mode runs with stdin from `/dev/null` and under a wall-clock bound, so a prompt or a stalled download fails the spawn instead of blocking the primary session and the rest of a serialized batch.
 The bound defaults to 900 seconds, and a project overrules it by handling the optional `.firstmate/bootstrap timeout` mode and printing a positive whole number of seconds.
-When a spawn does fail before it publishes task metadata, it releases the endpoint it created and returns the leased Treehouse worktree rather than leaving either orphaned.
+The bound is enforced by `timeout`, `gtimeout`, or a one-shot inline Node executor, in that order, so it holds on stock macOS as well as Linux; there is no unbounded fallback, and a host with none of the three refuses the declaration instead of running it.
+An overrun terminates the declaration's whole process group with `SIGTERM` and then `SIGKILL`, and `FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER` pins one of `timeout`, `gtimeout`, or `node` when a host needs a specific one.
+When a spawn does fail before it publishes task metadata, it releases the endpoint it created and returns the Treehouse worktree it acquired rather than leaving either orphaned; only an acquisition that passed the isolated-worktree proof is ever returned.
 Run `bin/fm-task-bootstrap.sh --help` for the authoritative declaration modes, fingerprint requirements, marker location, and failure behavior.
 Treehouse's own repository configuration is not a substitute: its repository-level hooks are ignored for safety, and its user-level hooks do not fail worktree acquisition when a command fails.
 

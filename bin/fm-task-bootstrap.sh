@@ -29,8 +29,16 @@
 # neither a loud failure nor a launch. The bound defaults to 900 seconds. A
 # project overrules it by handling the optional `timeout` mode and printing a
 # positive whole number of seconds; a declaration that exits nonzero for that
-# mode (the natural result of not handling it) keeps the default. Exceeding the
-# bound terminates the invocation and fails the spawn - there is no retry.
+# mode (the natural result of not handling it) keeps the default.
+# The bound is enforced by `timeout`, `gtimeout`, or a one-shot inline Node
+# executor, in that order. Stock macOS ships neither GNU timeout nor gtimeout,
+# so the Node executor is what keeps the bound real there. There is no unbounded
+# fallback: with none of the three available the declaration is refused instead
+# of run. FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER pins one of timeout, gtimeout, or
+# node when a host needs a specific one.
+# Overrunning the bound terminates the declaration's whole process group with
+# SIGTERM, then SIGKILL 10 seconds later, and fails the spawn loudly with the
+# bound it exceeded - there is no retry.
 #
 # The last successful fingerprint lives in the worktree-specific Git directory,
 # so it survives Treehouse's tracked-file reset and `git clean -fd` without
@@ -95,25 +103,77 @@ git -C "$worktree_real" ls-files --error-unmatch -- .firstmate/bootstrap >/dev/n
   || die "declaration is not tracked by Git: $declaration"
 
 BOOTSTRAP_TIMEOUT_DEFAULT_SECS=900
-TIMEOUT_RUNNER=
-if command -v timeout >/dev/null 2>&1; then
-  TIMEOUT_RUNNER=timeout
-elif command -v gtimeout >/dev/null 2>&1; then
-  TIMEOUT_RUNNER=gtimeout
-else
-  printf 'task bootstrap: warning: no timeout command available; %s runs unbounded\n' \
-    "$declaration" >&2
-fi
+BOOTSTRAP_TIMEOUT_KILL_AFTER_SECS=10
 
-# One bounded, noninteractive invocation of a declared mode. No supervisor and
-# no watchdog: the bound is the timeout utility's own, and a bounded run that
-# overruns exits 124.
+# One-shot inline executor for hosts without GNU timeout. It runs the
+# declaration in its own process group, signals that whole group on overrun so
+# the project's own children die with it, and reproduces the timeout(1) exit
+# contract this script reads: 124 on overrun, 128+signal otherwise.
+BOOTSTRAP_NODE_BOUNDED_EXEC='
+const { spawn } = require("child_process");
+const os = require("os");
+const bound = Number(process.argv[1]);
+const grace = Number(process.argv[2]);
+const child = spawn(process.argv[3], process.argv.slice(4), {
+  stdio: ["ignore", "inherit", "inherit"],
+  detached: true,
+});
+let timedOut = false;
+let killTimer = null;
+const signalGroup = (sig) => {
+  try {
+    process.kill(-child.pid, sig);
+  } catch (groupError) {
+    try {
+      child.kill(sig);
+    } catch (childError) {
+      /* already gone */
+    }
+  }
+};
+const boundTimer = setTimeout(() => {
+  timedOut = true;
+  signalGroup("SIGTERM");
+  killTimer = setTimeout(() => signalGroup("SIGKILL"), grace * 1000);
+}, bound * 1000);
+child.on("error", () => {
+  clearTimeout(boundTimer);
+  process.exit(127);
+});
+child.on("exit", (code, signal) => {
+  clearTimeout(boundTimer);
+  if (killTimer) clearTimeout(killTimer);
+  if (timedOut) process.exit(124);
+  process.exit(signal ? 128 + (os.constants.signals[signal] || 0) : code);
+});
+'
+
+case "${FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER:-}" in
+  '') bootstrap_runner_candidates='timeout gtimeout node' ;;
+  timeout|gtimeout|node) bootstrap_runner_candidates=$FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER ;;
+  *) die "unsupported FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER '$FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER': expected timeout, gtimeout, or node" ;;
+esac
+TIMEOUT_RUNNER=
+for bootstrap_runner_candidate in $bootstrap_runner_candidates; do
+  if command -v "$bootstrap_runner_candidate" >/dev/null 2>&1; then
+    TIMEOUT_RUNNER=$bootstrap_runner_candidate
+    break
+  fi
+done
+[ -n "$TIMEOUT_RUNNER" ] \
+  || die "no bounded execution runtime found (looked for: $bootstrap_runner_candidates); refusing to run $declaration unbounded"
+
+# One bounded, noninteractive invocation of a declared mode. No daemon and no
+# persistent supervisor: the bound lives and dies with this single invocation,
+# and an overrun exits 124.
 declared_mode() {  # <bound-seconds> <mode>
   local bound=$1 mode=$2
-  if [ -n "$TIMEOUT_RUNNER" ]; then
-    ( cd "$worktree_real" && exec "$TIMEOUT_RUNNER" "$bound" "$declaration" "$mode" ) < /dev/null
+  if [ "$TIMEOUT_RUNNER" = node ]; then
+    ( cd "$worktree_real" && exec node -e "$BOOTSTRAP_NODE_BOUNDED_EXEC" \
+        "$bound" "$BOOTSTRAP_TIMEOUT_KILL_AFTER_SECS" "$declaration" "$mode" ) < /dev/null
   else
-    ( cd "$worktree_real" && exec "$declaration" "$mode" ) < /dev/null
+    ( cd "$worktree_real" && exec "$TIMEOUT_RUNNER" \
+        -k "$BOOTSTRAP_TIMEOUT_KILL_AFTER_SECS" "$bound" "$declaration" "$mode" ) < /dev/null
   fi
 }
 

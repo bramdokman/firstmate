@@ -276,42 +276,153 @@ SH
   pass "every declared mode runs with stdin from /dev/null"
 }
 
-test_declared_timeout_bounds_a_hanging_run() {
-  local project worktree out status started elapsed
-  command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1 || {
-    pass "skipped: no timeout command available to bound a declared run"
-    return 0
-  }
-  project="$TMP_ROOT/timeout-project"
-  worktree="$TMP_ROOT/timeout-worktree"
-  fm_git_worktree "$project" "$worktree" bootstrap-timeout
+# A declaration that hangs and leaves a background child behind, so the bound is
+# proven to reach the whole process group and not just the declaration itself.
+write_hanging_declaration() {
+  local worktree=$1
   mkdir -p "$worktree/.firstmate"
   cat > "$worktree/.firstmate/bootstrap" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
   timeout) printf '1\n' ;;
   fingerprint) printf 'timeout-v1\n' ;;
-  run) sleep 120 ;;
+  run)
+    sleep 300 &
+    printf '%s\n' "$!" > "$(git rev-parse --show-toplevel)/grandchild.pid"
+    wait
+    ;;
   *) exit 2 ;;
 esac
 SH
   chmod +x "$worktree/.firstmate/bootstrap"
   track_declaration "$worktree"
+}
+
+assert_runner_bounds_a_hanging_run() {  # <runner>
+  local runner=$1 project worktree out status started elapsed pid waited=0
+  project="$TMP_ROOT/bound-$runner-project"
+  worktree="$TMP_ROOT/bound-$runner-worktree"
+  fm_git_worktree "$project" "$worktree" "bootstrap-bound-$runner"
+  write_hanging_declaration "$worktree"
 
   started=$(date +%s)
   set +e
-  out=$("$BOOTSTRAP" "$worktree" 2>&1)
+  out=$(FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER="$runner" "$BOOTSTRAP" "$worktree" 2>&1)
   status=$?
   set -e
   elapsed=$(( $(date +%s) - started ))
-  [ "$status" -ne 0 ] || fail "a run that exceeded its declared bound reported success"
+  [ "$status" -ne 0 ] \
+    || fail "$runner: a run that exceeded its declared bound reported success"
   assert_contains "$out" "exceeded 1s" \
-    "the bounded run failure did not name the bound it exceeded"
+    "$runner: the bounded run failure did not name the bound it exceeded"
   [ "$elapsed" -lt 60 ] \
-    || fail "the declared bound did not stop a hanging run (took ${elapsed}s)"
+    || fail "$runner: the declared bound did not stop a hanging run (took ${elapsed}s)"
+  pid=$(cat "$worktree/grandchild.pid" 2>/dev/null || true)
+  [ -n "$pid" ] || fail "$runner: the declaration never recorded its background child"
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 100 ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  ! kill -0 "$pid" 2>/dev/null \
+    || fail "$runner: the declaration's process group outlived its bound (pid $pid)"
   assert_absent "$(git -C "$worktree" rev-parse --absolute-git-dir)/fm-task-bootstrap.fingerprint" \
-    "a run stopped by its bound still published a success marker"
-  pass "a project-declared bound stops a hanging run and fails loudly"
+    "$runner: a run stopped by its bound still published a success marker"
+}
+
+test_every_available_runner_bounds_a_hanging_run() {
+  local runner covered=0
+  for runner in timeout gtimeout node; do
+    command -v "$runner" >/dev/null 2>&1 || continue
+    assert_runner_bounds_a_hanging_run "$runner"
+    covered=$((covered + 1))
+  done
+  [ "$covered" -gt 0 ] \
+    || fail "this host has no bounded execution runtime, so the declared bound is unenforceable"
+  pass "every available bounded runner stops a hanging run and kills its process group"
+}
+
+test_missing_bounded_runtime_refuses_the_declaration() {
+  local project worktree shim out status
+  project="$TMP_ROOT/no-runtime-project"
+  worktree="$TMP_ROOT/no-runtime-worktree"
+  shim="$TMP_ROOT/no-runtime-bin"
+  fm_git_worktree "$project" "$worktree" bootstrap-no-runtime
+  mkdir -p "$worktree/.firstmate" "$shim"
+  cat > "$worktree/.firstmate/bootstrap" <<'SH'
+#!/usr/bin/env bash
+printf 'unbounded declaration ran\n' > "$FM_TEST_UNBOUNDED_WITNESS"
+exit 0
+SH
+  chmod +x "$worktree/.firstmate/bootstrap"
+  track_declaration "$worktree"
+  ln -s "$(command -v git)" "$shim/git"
+  ln -s "$(command -v bash)" "$shim/bash"
+
+  set +e
+  out=$(PATH="$shim" FM_TEST_UNBOUNDED_WITNESS="$TMP_ROOT/unbounded-ran" \
+    FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER=node "$BOOTSTRAP" "$worktree" 2>&1)
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "a host with no bounded runtime still ran the declaration"
+  assert_contains "$out" "refusing to run" \
+    "the missing-runtime refusal did not say it will not run the declaration unbounded"
+  assert_absent "$TMP_ROOT/unbounded-ran" \
+    "the declaration ran unbounded when no bounded runtime was available"
+  pass "a host with no bounded runtime refuses the declaration instead of running it unbounded"
+}
+
+test_unsupported_runner_pin_is_refused() {
+  local project worktree out status
+  project="$TMP_ROOT/bad-runner-project"
+  worktree="$TMP_ROOT/bad-runner-worktree"
+  fm_git_worktree "$project" "$worktree" bootstrap-bad-runner
+  write_successful_declaration "$worktree"
+  printf 'lock-v1\n' > "$worktree/desired.lock"
+  printf 'tool-v1\n' > "$worktree/toolchain.version"
+
+  set +e
+  out=$(FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER=cat "$BOOTSTRAP" "$worktree" 2>&1)
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "an arbitrary command was accepted as the bounded runner"
+  assert_contains "$out" "unsupported FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER" \
+    "the runner pin refusal did not name the rejected value"
+  pass "only timeout, gtimeout, or node may be pinned as the bounded runner"
+}
+
+test_spawn_never_returns_an_unvalidated_worktree() {
+  local case_dir home project stray fakebin id out status calls
+  case_dir="$TMP_ROOT/spawn-unvalidated"
+  home="$case_dir/home"
+  project="$case_dir/project"
+  stray="$case_dir/stray"
+  calls="$case_dir/calls.log"
+  id=bootstrap-unvalidated-z2
+  fakebin=$(make_spawn_fakebin "$case_dir/fake")
+  mkdir -p "$home/data/$id" "$home/projects" "$home/state" "$home/config" "$stray"
+  printf 'codex\n' > "$home/config/crew-harness"
+  printf 'task brief\n' > "$home/data/$id/brief.md"
+  touch "$home/state/.last-watcher-beat"
+  fm_git_init_commit "$project"
+
+  set +e
+  out=$(FM_ROOT_OVERRIDE='' FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
+    FM_SPAWN_NO_GUARD=1 TMUX='fake,1,0' FM_FAKE_PANE_PATH="$stray" \
+    FM_FAKE_CALL_LOG="$calls" \
+    PATH="$fakebin:$PATH" "$SPAWN" "$id" "$project" 2>&1)
+  status=$?
+  set -e
+
+  [ "$status" -ne 0 ] || fail "spawn launched from a pane that never entered a worktree"
+  assert_contains "$out" "did not yield an isolated worktree" \
+    "spawn did not refuse the unvalidated pane path"
+  assert_grep "kill-window" "$calls" \
+    "the refused spawn left its tmux window behind"
+  assert_no_grep "treehouse return" "$calls" \
+    "spawn handed an unvalidated non-worktree path to treehouse return --force"
+  pass "an unvalidated pane path is never returned to the treehouse pool"
 }
 
 test_default_bound_applies_without_a_declared_timeout() {
@@ -336,7 +447,10 @@ test_failed_run_does_not_publish_a_matching_marker
 test_untracked_declaration_never_runs
 test_symlinked_firstmate_parent_never_runs
 test_declared_modes_are_noninteractive
-test_declared_timeout_bounds_a_hanging_run
+test_every_available_runner_bounds_a_hanging_run
+test_missing_bounded_runtime_refuses_the_declaration
+test_unsupported_runner_pin_is_refused
 test_default_bound_applies_without_a_declared_timeout
+test_spawn_never_returns_an_unvalidated_worktree
 
 echo "# all task-bootstrap tests passed"
