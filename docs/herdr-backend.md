@@ -281,6 +281,7 @@ Tests use thin compatibility wrappers in `tests/herdr-test-safety.sh` and never 
 - OpenCode 1.18.4 can accept Enter while busy without clearing the composer.
   The tmux backend has a busy-queue fallback, but Herdr still reports this case as submit pending and needs a separate adapter fix.
 - Only tmux and Herdr can host the away-mode supervisor terminal.
+- A spawn that fails before it publishes task metadata - a settle timeout or a failed project task bootstrap - cleans up only the panes a projected create made, so its task container and leased Treehouse worktree can need manual cleanup; tmux, zellij, and cmux spawns release both.
 
 ## Regression entry points
 

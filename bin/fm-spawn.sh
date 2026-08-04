@@ -94,6 +94,9 @@
 #   default-branch commit when safe; skipped syncs warn and launch unchanged.
 #   Ship/scout spawns refuse to launch unless the resolved task path is a real
 #   git worktree root distinct from the primary project checkout.
+#   After that isolation proof and before worker launch, ship/scout spawns run
+#   bin/fm-task-bootstrap.sh so a project's declared prerequisites fail closed
+#   and matching environment fingerprints stay cheap.
 # Batch dispatch: pass one or more `id=repo` pairs instead of a single <id> <project>, e.g.
 #     fm-spawn.sh fix-a-k3=projects/foo add-b-q7=projects/bar [--scout]
 #   Each pair re-execs this script in single-task mode, so the single path stays the only
@@ -259,6 +262,16 @@ fi
 ORCA_ABORT_CLEANUP=0
 ORCA_WORKTREE_ID=
 ORCA_TERMINAL=
+## tmux/zellij/cmux counterpart to the orca and herdr abort paths: the endpoint
+## is created and the treehouse worktree leased well before state/<id>.meta is
+## published, and fm-teardown refuses a task with no meta. Without this, an
+## ordinary failure between the two (a settle timeout, a failed project
+## bootstrap) orphans a window and a leased pool slot with no supported cleanup.
+ENDPOINT_ABORT_CLEANUP=0
+## Set only once validate_spawn_worktree has positively accepted the acquired
+## path, so an unvalidated pane reading (a shell that never entered a worktree)
+## is never handed to `treehouse return --force`.
+ENDPOINT_ABORT_WORKTREE=
 HERDR_PROJECTION_ABORT_CLEANUP=0
 HERDR_PROJECTION_ABORT_SESSION=
 HERDR_PROJECTION_ABORT_TASK_PANE=
@@ -306,6 +319,18 @@ spawn_abort_cleanup() {
   if [ "$HERDR_PRESENTATION_ORDER_LOCK_HELD" = 1 ]; then
     HERDR_PRESENTATION_ORDER_LOCK_HELD=0
     fm_lock_release "$HERDR_PRESENTATION_ORDER_LOCK" || true
+  fi
+  if [ "$ENDPOINT_ABORT_CLEANUP" = 1 ]; then
+    ENDPOINT_ABORT_CLEANUP=0
+    if [ -n "${T:-}" ]; then
+      fm_backend_kill "$BACKEND" "$T" "${ZELLIJ_TAB_ID:-}" "$W" 2>/dev/null || true
+    fi
+    # Only the exact acquisition validate_spawn_worktree accepted is returned,
+    # never a bare pane reading that merely differed from the project path.
+    if [ -n "${ENDPOINT_ABORT_WORKTREE:-}" ] && command -v treehouse >/dev/null 2>&1; then
+      ( cd "$PROJ_ABS" && treehouse return --force "$ENDPOINT_ABORT_WORKTREE" ) >/dev/null 2>&1 \
+        || echo "warning: could not return leased worktree $ENDPOINT_ABORT_WORKTREE after a failed spawn of $ID; return it manually" >&2
+    fi
   fi
   if [ "$ORCA_ABORT_CLEANUP" = 1 ]; then
     ORCA_ABORT_CLEANUP=0
@@ -1201,6 +1226,15 @@ EOF
     T="$ORCA_TERMINAL"
     ;;
 esac
+# Every create_task above refuses an existing endpoint, so the one now in $T was
+# created by this process and is safe to release on abort. Orca and herdr own
+# their own abort paths; secondmate spawns lease no task worktree and are left
+# to their existing lifecycle.
+case "$BACKEND" in
+  tmux|zellij|cmux)
+    [ "$KIND" = secondmate ] || ENDPOINT_ABORT_CLEANUP=1
+    ;;
+esac
 # #134 robustness: only tmux needs a worktree-detection target distinct from $T -
 # its rename-safe stable window id, set as WT_TARGET=$WID in the tmux branch above.
 # Every other backend addresses its pane/surface by the id already in $T, so default
@@ -1342,6 +1376,14 @@ if [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   fi
 
   validate_spawn_worktree "treehouse get" "$T"
+  ENDPOINT_ABORT_WORKTREE=$WT
+fi
+
+if [ "$KIND" != secondmate ]; then
+  if ! "$FM_ROOT/bin/fm-task-bootstrap.sh" "$WT"; then
+    echo "error: task bootstrap failed for $ID; refusing to launch worker" >&2
+    exit 1
+  fi
 fi
 
 # Per-task temp root: /tmp/fm-<id>/ with Go's build temp nested at gotmp/. Go won't
@@ -1647,6 +1689,8 @@ META_WINDOW=$T
   fi
 } > "$STATE/$ID.meta"
 [ "$BACKEND" = orca ] && ORCA_ABORT_CLEANUP=0
+# Published metadata makes the endpoint and worktree fm-teardown's to release.
+ENDPOINT_ABORT_CLEANUP=0
 
 sq_brief=$(shell_quote "$BRIEF")
 sq_turnend=$(shell_quote "$TURNEND")
