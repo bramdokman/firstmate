@@ -2074,6 +2074,7 @@ fi
 
 META_WINDOW=$T
 [ "$BACKEND" = orca ] && META_WINDOW=$W
+DISPATCHED_AT=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 {
   echo "window=$META_WINDOW"
   echo "endpoint_task_id=$ID"
@@ -2086,6 +2087,7 @@ META_WINDOW=$T
   echo "tasktmp=$TASK_TMP"
   echo "model=${MODEL:-default}"
   echo "effort=${EFFORT:-default}"
+  echo "dispatched_at=$DISPATCHED_AT"
   [ -z "${BUSY_GEN:-}" ] || echo "busy_gen=$BUSY_GEN"
   # Default-off writes no traceparent= line (meta stays byte-identical).
   # backend= is written only for a non-default (non-tmux) backend, so the
