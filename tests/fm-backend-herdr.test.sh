@@ -2376,7 +2376,10 @@ test_send_text_submit_confirms_fast_complete_from_bounded_postcondition() {
 # above the composer, so this send's own echoed message line sits far outside a
 # composer-sized tail. The transcript delta must therefore be counted over the
 # full capture the adapter already fetches from herdr, while composer emptiness
-# stays classified on the bottom FM_BACKEND_HERDR_COMPOSER_LINES rows.
+# stays classified on the bottom FM_BACKEND_HERDR_COMPOSER_LINES rows. The
+# capture stub trims to its requested <lines> bound exactly like the real
+# fm_backend_herdr_capture_ansi, so a composer-sized request reproduces the
+# pre-widening 'pending' verdict.
 test_send_text_submit_confirms_tall_fast_complete_turn() {
   local dir log out enter_count literal_count
   dir="$TMP_ROOT/submit-tall-fast-complete"; mkdir -p "$dir"; log="$dir/log"; : > "$log"
@@ -2405,16 +2408,18 @@ test_send_text_submit_confirms_tall_fast_complete_turn() {
         capture_count=$(cat "$FM_HERDR_TEST_LOG.capture-count" 2>/dev/null || printf 0)
         capture_count=$((capture_count + 1))
         printf "%s\n" "$capture_count" > "$FM_HERDR_TEST_LOG.capture-count"
-        printf "old transcript\n• previous completion\n"
-        if [ "$capture_count" -gt 1 ]; then
-          printf "› tall task\n"
-          row=1
-          while [ "$row" -le 30 ]; do
-            printf "  rendered answer row %s\n" "$row"
-            row=$((row + 1))
-          done
-        fi
-        printf "\n  › \x1b[2mType a message\x1b[0m\n"
+        {
+          printf "old transcript\n• previous completion\n"
+          if [ "$capture_count" -gt 1 ]; then
+            printf "› tall task\n"
+            row=1
+            while [ "$row" -le 30 ]; do
+              printf "  rendered answer row %s\n" "$row"
+              row=$((row + 1))
+            done
+          fi
+          printf "\n  › \x1b[2mType a message\x1b[0m\n"
+        } | tail -n "${2:-200}"
       }
       fm_backend_herdr_capture() {
         fm_backend_herdr_capture_ansi "$@"

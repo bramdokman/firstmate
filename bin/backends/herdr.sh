@@ -2285,17 +2285,16 @@ EOF
 # each backend confirms it is an internal decision, and herdr's is no longer
 # literally "the composer read empty".
 fm_backend_herdr_submit_literal_line_count() {  # <ansi-capture> <literal> -> count
-  local cap=$1 literal=$2 line plain count=0
+  local cap=$1 literal=$2 plain count=0
   [ -n "$literal" ] || { printf '0'; return 0; }
   case "$literal" in *$'\n'*) printf '0'; return 0 ;; esac
-  while IFS= read -r line; do
-    plain=$(printf '%s' "$line" | fm_composer_strip_ansi)
+  while IFS= read -r plain; do
     plain="${plain#"${plain%%[![:space:]]*}"}"
     plain="${plain%"${plain##*[![:space:]]}"}"
     if [ "$plain" = "$literal" ] || [ "$plain" = "❯ $literal" ] || [ "$plain" = "› $literal" ]; then
       count=$((count + 1))
     fi
-  done < <(printf '%s\n' "$cap")
+  done < <(printf '%s\n' "$cap" | fm_composer_strip_ansi)
   printf '%s' "$count"
 }
 
