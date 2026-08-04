@@ -94,6 +94,9 @@
 #   default-branch commit when safe; skipped syncs warn and launch unchanged.
 #   Ship/scout spawns refuse to launch unless the resolved task path is a real
 #   git worktree root distinct from the primary project checkout.
+#   After that isolation proof and before worker launch, ship/scout spawns run
+#   bin/fm-task-bootstrap.sh so a project's declared prerequisites fail closed
+#   and matching environment fingerprints stay cheap.
 # Batch dispatch: pass one or more `id=repo` pairs instead of a single <id> <project>, e.g.
 #     fm-spawn.sh fix-a-k3=projects/foo add-b-q7=projects/bar [--scout]
 #   Each pair re-execs this script in single-task mode, so the single path stays the only
@@ -1342,6 +1345,13 @@ if [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   fi
 
   validate_spawn_worktree "treehouse get" "$T"
+fi
+
+if [ "$KIND" != secondmate ]; then
+  if ! "$FM_ROOT/bin/fm-task-bootstrap.sh" "$WT"; then
+    echo "error: task bootstrap failed for $ID; refusing to launch worker" >&2
+    exit 1
+  fi
 fi
 
 # Per-task temp root: /tmp/fm-<id>/ with Go's build temp nested at gotmp/. Go won't
