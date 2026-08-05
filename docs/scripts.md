@@ -90,6 +90,7 @@ The shared no-mistakes gate refusal for fleet lifecycle entrypoints is summarize
 | `fm-pr-merge.sh`         | Record PR metadata, then merge a task's canonical full GitHub URL                    |
 | `fm-promote.sh`          | Promote a scout task in place to a protected ship task                               |
 | `fm-teardown.sh`         | Fail-closed teardown: return landed ship worktrees, require completed scout deliverables, retire secondmate homes |
+| `fm-completion-receipt-lib.sh` | Own the append-only `data/completion-receipts.jsonl` schema, dedupe, and locked write teardown drives |
 | `fm-issue-closure.sh`    | Best-effort post-merge report of issues a merged GitHub PR referenced for closing but GitHub left open |
 | `fm-harness.sh`          | Detect the running harness and resolve crew or secondmate harness, model, and effort |
 | `fm-lock.sh`             | Per-home firstmate session lock                                                      |

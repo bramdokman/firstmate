@@ -410,12 +410,17 @@ teardown_task() {  # <id> <home>
     "$ROOT/bin/fm-teardown.sh" "$id" --force
 }
 
+# dispatched_at is the real spawn metadata-persistence event time, so the same
+# task id spawned twice records two different wall-clock values by design. It is
+# normalized like the container IDs so the comparison still pins what this test
+# owns: that projection changes nothing else in the metadata.
 normalize_meta() {  # <meta>
   sed -E \
     -e 's|^window=.*$|window=<herdr-container-id>|' \
     -e 's|^herdr_workspace_id=.*$|herdr_workspace_id=<herdr-container-id>|' \
     -e 's|^herdr_tab_id=.*$|herdr_tab_id=<herdr-container-id>|' \
     -e 's|^herdr_pane_id=.*$|herdr_pane_id=<herdr-container-id>|' \
+    -e 's|^dispatched_at=.*$|dispatched_at=<dispatch-event-time>|' \
     "$1"
 }
 
@@ -669,7 +674,7 @@ PROJECTION_ORDER_START=$(log_line_count)
 normalize_meta "$OFF_META" > "$TMP_ROOT/off.meta.normalized"
 normalize_meta "$ON_META" > "$TMP_ROOT/on.meta.normalized"
 cmp -s "$TMP_ROOT/off.meta.normalized" "$TMP_ROOT/on.meta.normalized" \
-  || fail "metadata changed beyond Herdr container IDs between flag-off and projected paths"
+  || fail "metadata changed beyond Herdr container IDs and the dispatch event time between flag-off and projected paths"
 
 # Two real concurrent primary spawns share the bounded presentation-order lock.
 # Their final relative order must match Herdr's actual serialized create order,

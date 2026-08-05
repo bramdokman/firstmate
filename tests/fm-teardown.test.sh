@@ -63,6 +63,12 @@
 #   (w) index.lock mtime read failure                         -> lock kept, REFUSE
 #   (x) transient lock cleared after first failed return      -> retry ALLOW
 #   (y) persistent lock (never clears, not provably stale)    -> REFUSE loudly
+#
+# It also owns the durable completion-receipt coverage teardown drives through
+# bin/fm-completion-receipt-lib.sh: the typed record retained before volatile
+# task state is deleted, merge attribution, the honest legacy dispatch-time gap,
+# retry/re-dispatch deduping, concurrent teardowns sharing one ledger, and a
+# receipt write failure that must warn without blocking cleanup.
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
@@ -86,7 +92,7 @@ make_case() {
   local name=$1 case_dir fakebin
   case_dir="$TMP_ROOT/$name"
   fakebin="$case_dir/fakebin"
-  mkdir -p "$case_dir/state" "$case_dir/config" "$fakebin"
+  mkdir -p "$case_dir/state" "$case_dir/config" "$case_dir/data" "$fakebin"
 
   # Mocks for the post-check teardown steps. Refuse logic exits before these
   # run; the ALLOW cases need them so the script can complete cleanly.
@@ -621,9 +627,177 @@ run_teardown() {
   local case_dir=$1; shift
   FM_ROOT_OVERRIDE="$ROOT" \
   FM_STATE_OVERRIDE="$case_dir/state" \
+  FM_DATA_OVERRIDE="$case_dir/data" \
   FM_CONFIG_OVERRIDE="$case_dir/config" \
   PATH="$case_dir/fakebin:$PATH" \
     "$TEARDOWN" task-x1 "$@"
+}
+
+test_teardown_writes_typed_completion_receipt() {
+  local case_dir receipt
+  case_dir=$(make_case completion-receipt)
+  write_meta "$case_dir" local-only ship
+  cat >> "$case_dir/state/task-x1.meta" <<'EOF'
+harness=codex
+model=gpt-5.6
+effort=high
+yolo=off
+dispatched_at=2026-08-04T09:10:11Z
+EOF
+  cat > "$case_dir/state/task-x1.status" <<'EOF'
+working [key=interface]: implementation started
+needs-decision [key=interface]: choose an interface
+resolved [key=interface]: interface selected
+blocked [key=dependency]: dependency unavailable
+resolved [key=dependency]: dependency restored
+paused: waiting on CI
+failed: first validation failed
+done: validation passed
+EOF
+
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "completion-receipt: teardown failed"
+
+  receipt="$case_dir/data/completion-receipts.jsonl"
+  [ -f "$receipt" ] || fail "completion-receipt: teardown did not retain a receipt"
+  [ "$(wc -l < "$receipt" | tr -d ' ')" -eq 1 ] \
+    || fail "completion-receipt: teardown did not retain exactly one record"
+  jq -e --arg project "$case_dir/project" '
+    .schema_version == 1 and
+    .task_id == "task-x1" and
+    .kind == "ship" and
+    .project == $project and
+    .delivery_mode == "local-only" and
+    .harness == "codex" and
+    .model == "gpt-5.6" and
+    .effort == "high" and
+    .backend == "tmux" and
+    .yolo == false and
+    .dispatch_time == "2026-08-04T09:10:11Z" and
+    .dispatch_time_source == "spawn_meta" and
+    (.teardown_time | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
+    .terminal_outcome == "completed" and
+    .delivery_outcome == "local_only" and
+    .pr_url == null and
+    .merged_commit == null and
+    .status_event_counts == {
+      "needs-decision": 1,
+      "blocked": 1,
+      "paused": 1,
+      "resolved": 2,
+      "failed": 1
+    }
+  ' "$receipt" >/dev/null || fail "completion-receipt: retained record has the wrong schema or values"
+  pass "teardown retains one typed completion receipt before deleting volatile task state"
+}
+
+test_completion_receipt_write_failure_does_not_block_teardown() {
+  local case_dir rc
+  case_dir=$(make_case completion-receipt-write-failure)
+  write_meta "$case_dir" local-only ship
+  mkdir "$case_dir/data/completion-receipts.jsonl"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "completion-receipt-write-failure: receipt failure must not block teardown"
+  [ ! -e "$case_dir/state/task-x1.meta" ] \
+    || fail "completion-receipt-write-failure: teardown stranded task metadata"
+  assert_grep "completion receipt" "$case_dir/stderr" \
+    "completion-receipt-write-failure: teardown did not report the receipt failure"
+  pass "a completion receipt write failure is reported without blocking teardown"
+}
+
+test_legacy_task_receipt_does_not_invent_dispatch_time() {
+  local case_dir receipt
+  case_dir=$(make_case completion-receipt-legacy-dispatch)
+  write_meta "$case_dir" local-only ship
+
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "completion-receipt-legacy-dispatch: teardown failed"
+
+  receipt="$case_dir/data/completion-receipts.jsonl"
+  jq -e '
+    .dispatch_time == null and
+    .dispatch_time_source == "unavailable_legacy_meta"
+  ' "$receipt" >/dev/null \
+    || fail "completion-receipt-legacy-dispatch: receipt invented a legacy dispatch time"
+  pass "legacy task receipts name the unavailable dispatch-time gap instead of using mtime"
+}
+
+test_completion_receipt_dedupes_retry_but_keeps_redispatch() {
+  local case_dir receipt
+  case_dir=$(make_case completion-receipt-retry)
+  write_meta "$case_dir" local-only ship
+  printf 'dispatched_at=%s\n' 2026-08-04T09:10:11Z >> "$case_dir/state/task-x1.meta"
+  printf '%s\n' \
+    '{"schema_version":1,"task_id":"task-x1","dispatch_time":"2026-08-04T09:10:11Z"}' \
+    > "$case_dir/data/completion-receipts.jsonl"
+
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "completion-receipt-retry: teardown failed"
+
+  receipt="$case_dir/data/completion-receipts.jsonl"
+  [ "$(wc -l < "$receipt" | tr -d ' ')" -eq 1 ] \
+    || fail "completion-receipt-retry: a retried teardown of the same dispatch appended a duplicate"
+
+  case_dir=$(make_case completion-receipt-redispatch)
+  write_meta "$case_dir" local-only ship
+  printf 'dispatched_at=%s\n' 2026-08-04T11:22:33Z >> "$case_dir/state/task-x1.meta"
+  printf '%s\n' \
+    '{"schema_version":1,"task_id":"task-x1","dispatch_time":"2026-08-04T09:10:11Z","terminal_outcome":"discarded"}' \
+    > "$case_dir/data/completion-receipts.jsonl"
+
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "completion-receipt-redispatch: teardown failed"
+
+  receipt="$case_dir/data/completion-receipts.jsonl"
+  [ "$(wc -l < "$receipt" | tr -d ' ')" -eq 2 ] \
+    || fail "completion-receipt-redispatch: the re-dispatched run did not earn its own receipt"
+  jq -e -s '
+    .[0].terminal_outcome == "discarded" and
+    .[1].dispatch_time == "2026-08-04T11:22:33Z" and
+    .[1].terminal_outcome == "completed"
+  ' "$receipt" >/dev/null \
+    || fail "completion-receipt-redispatch: the ledger lost an outcome or misrecorded the new run"
+  pass "a retried teardown appends no duplicate while a re-dispatched task id earns its own receipt"
+}
+
+# Several crewmates can finish at once, and every teardown appends to the same
+# private ledger. Concurrent appends must all land whole: no interleaved half
+# line, and no receipt silently lost to a racing writer.
+test_concurrent_teardowns_append_every_receipt_intact() {
+  local shared case_dir name index=0 receipt
+  local pids=()
+  shared="$TMP_ROOT/concurrent-receipts-shared-data"
+  mkdir -p "$shared"
+
+  for name in concurrent-receipt-a concurrent-receipt-b concurrent-receipt-c; do
+    case_dir=$(make_case "$name")
+    write_meta "$case_dir" local-only ship
+    index=$((index + 1))
+    printf 'dispatched_at=2026-08-04T09:10:0%sZ\n' "$index" \
+      >> "$case_dir/state/task-x1.meta"
+    # One shared data/ for all three teardowns: the same ledger, the same lock.
+    rmdir "$case_dir/data"
+    ln -s "$shared" "$case_dir/data"
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" &
+    pids+=("$!")
+  done
+  for name in "${pids[@]}"; do
+    wait "$name" || fail "concurrent-receipts: a concurrent teardown failed"
+  done
+
+  receipt="$shared/completion-receipts.jsonl"
+  jq -e -s '
+    length == 3 and
+    (map(.task_id) | all(. == "task-x1")) and
+    ([.[].dispatch_time] | unique | length) == 3
+  ' "$receipt" >/dev/null \
+    || fail "concurrent-receipts: concurrent teardowns lost or corrupted a receipt"
+  pass "concurrent teardowns each append one intact receipt to the shared ledger"
 }
 
 test_local_only_fork_remote_allows() {
@@ -1654,6 +1828,12 @@ test_squash_merged_pr_allows_via_merge_commit() {
 
   expect_code 0 "$rc" "squash-merge-commit: teardown should succeed when the merge commit holds the work"
   ! grep -q REFUSED "$case_dir/stderr" || fail "squash-merge-commit: teardown printed a REFUSED line"
+  jq -e --arg merge "$merge_sha" '
+    .pr_url == "https://github.com/example/repo/pull/7" and
+    .merged_commit == $merge and
+    .delivery_outcome == "merged"
+  ' "$case_dir/data/completion-receipts.jsonl" >/dev/null \
+    || fail "squash-merge-commit: completion receipt lost the PR outcome"
   pass "squash-merged work is recognized from the PR's merge commit when no local hash survives"
 }
 
@@ -1821,6 +2001,11 @@ test_teardown_issue_closure_lookup_failure_does_not_block() {
 }
 
 test_local_only_fork_remote_allows
+test_teardown_writes_typed_completion_receipt
+test_completion_receipt_write_failure_does_not_block_teardown
+test_legacy_task_receipt_does_not_invent_dispatch_time
+test_completion_receipt_dedupes_retry_but_keeps_redispatch
+test_concurrent_teardowns_append_every_receipt_intact
 test_teardown_prompts_tasks_axi_done_when_compatible
 test_teardown_manual_backend_prompts_hand_edit_even_when_tasks_axi_present
 test_local_only_truly_unpushed_refuses

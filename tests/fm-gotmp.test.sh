@@ -70,6 +70,13 @@ make_fake_root() {
   # teardown now requires.
   ln -s "$ROOT/bin/fm-public-followup-lib.sh" "$fake/bin/fm-public-followup-lib.sh"
   ln -s "$ROOT/bin/fm-x-lib.sh" "$fake/bin/fm-x-lib.sh"
+  # fm-wake-lib.sh and fm-completion-receipt-lib.sh (and the fm-classify-lib.sh
+  # the receipt writer sources for the canonical status verbs): teardown sources
+  # all three unconditionally, so they are required siblings even for a fixture
+  # that writes no wake and whose receipt only records this task's own outcome.
+  ln -s "$ROOT/bin/fm-wake-lib.sh" "$fake/bin/fm-wake-lib.sh"
+  ln -s "$ROOT/bin/fm-completion-receipt-lib.sh" "$fake/bin/fm-completion-receipt-lib.sh"
+  ln -s "$ROOT/bin/fm-classify-lib.sh" "$fake/bin/fm-classify-lib.sh"
   # fm-guard.sh: stub (teardown calls it with `|| true`).
   cat > "$fake/bin/fm-guard.sh" <<'SH'
 #!/usr/bin/env bash
@@ -142,6 +149,10 @@ test_teardown_skips_gracefully_without_tasktmp() {
   # teardown now requires.
   ln -s "$ROOT/bin/fm-public-followup-lib.sh" "$fake/bin/fm-public-followup-lib.sh"
   ln -s "$ROOT/bin/fm-x-lib.sh" "$fake/bin/fm-x-lib.sh"
+  # Same newly required siblings as make_fake_root above.
+  ln -s "$ROOT/bin/fm-wake-lib.sh" "$fake/bin/fm-wake-lib.sh"
+  ln -s "$ROOT/bin/fm-completion-receipt-lib.sh" "$fake/bin/fm-completion-receipt-lib.sh"
+  ln -s "$ROOT/bin/fm-classify-lib.sh" "$fake/bin/fm-classify-lib.sh"
   cat > "$fake/bin/fm-guard.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0

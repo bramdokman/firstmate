@@ -6,6 +6,23 @@
 # bin/fm-issue-closure.sh), then print a backlog-refresh reminder for ship and
 # scout teardowns (a secondmate teardown prints none, since secondmates are not
 # backlog items).
+# Cleanup deletes the task's volatile metadata and status events, so before that
+# happens teardown retains one durable typed completion receipt per task - and
+# per discarded secondmate child - in data/completion-receipts.jsonl.
+# bin/fm-completion-receipt-lib.sh owns the exact schema, its dedupe across a
+# retried teardown, and the locked append; this script owns the two outcome
+# vocabularies it supplies:
+#   terminal_outcome  completed, or discarded for a --force teardown and for
+#                     every discarded secondmate child.
+#   delivery_outcome  discarded (--force), then reported (kind=scout), retired
+#                     (kind=secondmate), local_only (mode=local-only), and for a
+#                     remaining ship task merged when a merge commit is known,
+#                     pr_recorded when only a pr= is, else
+#                     landed_or_remote_preserved.
+# merged needs that commit, so a bounded best-effort GitHub lookup runs after the
+# destructive steps (refresh_completion_merge_commit below); every failure stays
+# an honest unknown rather than an invented fact. A receipt that cannot be
+# written warns and never blocks cleanup or strands a worktree.
 # REFUSES if the worktree holds work that has not LANDED, because cleanup
 # hard-resets/removes the worktree and kills its processes. Work has landed when it is
 # reachable from any remote-tracking branch (a fork counts as a remote, so
@@ -125,12 +142,16 @@ SUB_HOME_MARKER=".fm-secondmate-home"
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-lock-lib.sh
 . "$SCRIPT_DIR/fm-lock-lib.sh"
+# shellcheck source=bin/fm-wake-lib.sh
+. "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-gate-refuse-lib.sh
 . "$SCRIPT_DIR/fm-gate-refuse-lib.sh"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-public-followup-lib.sh
 . "$SCRIPT_DIR/fm-public-followup-lib.sh"
+# shellcheck source=bin/fm-completion-receipt-lib.sh
+. "$SCRIPT_DIR/fm-completion-receipt-lib.sh"
 if [ "$#" -lt 1 ] || ! fm_task_id_path_safe "$1"; then
   echo "error: invalid teardown request" >&2
   exit 2
@@ -157,6 +178,7 @@ T_ORCA=
 "$FM_ROOT/bin/fm-guard.sh" || true
 HOME_PATH=$(grep '^home=' "$META" | cut -d= -f2- || true)
 PR_URL=$(grep '^pr=' "$META" | tail -1 | cut -d= -f2- || true)
+RECEIPT_MERGED_COMMIT=
 # tasktmp is recorded by fm-spawn for tasks that set up a per-task temp root
 # (/tmp/fm-<id>/); absent for tasks spawned before that change, so tolerate empty.
 TASK_TMP=$(grep '^tasktmp=' "$META" | cut -d= -f2- || true)
@@ -682,7 +704,9 @@ pr_is_merged() {
   merge_sha=${rest#*$'\t'}
   [ "$head" != "$rest" ] || merge_sha=
   case "$state" in
-    MERGED|merged) ;;
+    MERGED|merged)
+      [ -n "$RECEIPT_MERGED_COMMIT" ] || RECEIPT_MERGED_COMMIT=$merge_sha
+      ;;
     *)
       landed_note "pull request $target is $state, not merged"
       return 1
@@ -700,6 +724,54 @@ pr_is_merged() {
     landed_note "the head commit of merged pull request $target could not be retrieved, so the local commits could not be compared against it"
   fi
   merged_commit_contains_branch_change "$target" "$merge_sha"
+}
+
+# Last-chance merge attribution for the completion receipt. It runs after the
+# destructive cleanup steps, so the lookup is only ever attempted when it can be
+# bounded: without a usable timeout command the enrichment is skipped entirely
+# and the receipt keeps an honest unknown, because an unbounded network call here
+# would strand a half-torn-down task. It never prompts and treats every failure
+# as unknown. GitHub only: a merged GitLab merge request leaves merged_commit
+# null in the receipt rather than having a commit invented for it.
+COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS=${FM_COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS:-15}
+# A zero or non-integer bound is no bound at all (GNU `timeout 0` waits forever),
+# so an unusable override falls back to the default instead of being trusted.
+case "$COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS" in
+  ''|*[!0-9]*|0) COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS=15 ;;
+esac
+
+refresh_completion_merge_commit() {
+  local view state merge_sha runner=
+  [ -n "$PR_URL" ] || return 0
+  [ -z "$RECEIPT_MERGED_COMMIT" ] || return 0
+  command -v gh >/dev/null 2>&1 || return 0
+  if command -v timeout >/dev/null 2>&1; then
+    runner=timeout
+  elif command -v gtimeout >/dev/null 2>&1; then
+    runner=gtimeout
+  else
+    return 0
+  fi
+  view=$(cd "$PROJ" && GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
+    "$runner" "$COMPLETION_MERGE_LOOKUP_TIMEOUT_SECS" \
+    gh pr view "$PR_URL" --json state,mergeCommit 2>/dev/null </dev/null) || return 0
+  state=$(printf '%s' "$view" | jq -r '.state // empty' 2>/dev/null) || return 0
+  case "$state" in MERGED|merged) ;; *) return 0 ;; esac
+  merge_sha=$(printf '%s' "$view" | jq -r '.mergeCommit.oid // empty' 2>/dev/null) || return 0
+  RECEIPT_MERGED_COMMIT=$merge_sha
+}
+
+write_completion_receipt_best_effort() {
+  local id=$1 meta=$2 status=$3 terminal_outcome=$4 delivery_outcome=$5
+  local pr_url=$6 merged_commit=$7 teardown_time
+  if ! teardown_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null); then
+    echo "warning: completion receipt for $id could not record teardown time; continuing cleanup" >&2
+    return 0
+  fi
+  if ! fm_completion_receipt_append "$DATA" "$id" "$meta" "$status" \
+      "$teardown_time" "$terminal_outcome" "$delivery_outcome" "$pr_url" "$merged_commit"; then
+    echo "warning: completion receipt for $id could not be written; continuing cleanup" >&2
+  fi
 }
 
 # A squash merge lands the whole branch as one new commit on the base. That merge
@@ -1433,6 +1505,9 @@ cleanup_firstmate_home_children() {
       child_busy_gen=$(cat "$sub_state/$child_id.busy-gen" 2>/dev/null || true)
     fi
     retire_busy_state "$sub_state" "$child_id" "$child_busy_gen" || return 1
+    write_completion_receipt_best_effort "$child_id" "$child_meta" \
+      "$sub_state/$child_id.status" discarded discarded \
+      "$(meta_value "$child_meta" pr)" ""
     rm -f "$sub_state/$child_id.status" "$sub_state/$child_id.turn-ended" \
       "$sub_state/$child_id.meta" "$sub_state/$child_id.pi-ext.ts" \
       "$sub_state/$child_id.grok-turnend-token" "$sub_state/$child_id.kimi-turnend-token"
@@ -1599,8 +1674,6 @@ if [ "$BACKEND" = herdr ] \
 fi
 
 if [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
-  # shellcheck source=bin/fm-wake-lib.sh
-  . "$SCRIPT_DIR/fm-wake-lib.sh"
   HERDR_PRESENTATION_FOCUS_LOCK=
   HERDR_PRESENTATION_FOCUS_LOCK_HELD=0
   HERDR_PRESENTATION_FOCUS_LOCK_ATTEMPT=0
@@ -1643,6 +1716,27 @@ fi
 remove_grok_turnend_auth "$STATE" "$ID"
 remove_kimi_turnend_auth "$STATE" "$ID"
 fm_backend_clear_transition "$BACKEND" "$STATE" "$T" || true
+TERMINAL_OUTCOME=completed
+DELIVERY_OUTCOME=landed_or_remote_preserved
+if [ "$FORCE" = "--force" ]; then
+  TERMINAL_OUTCOME=discarded
+  DELIVERY_OUTCOME=discarded
+elif [ "$KIND" = scout ]; then
+  DELIVERY_OUTCOME=reported
+elif [ "$KIND" = secondmate ]; then
+  DELIVERY_OUTCOME=retired
+elif [ "$MODE" = local-only ]; then
+  DELIVERY_OUTCOME=local_only
+else
+  refresh_completion_merge_commit
+  if [ -n "$RECEIPT_MERGED_COMMIT" ]; then
+    DELIVERY_OUTCOME=merged
+  elif [ -n "$PR_URL" ]; then
+    DELIVERY_OUTCOME=pr_recorded
+  fi
+fi
+write_completion_receipt_best_effort "$ID" "$META" "$STATE/$ID.status" \
+  "$TERMINAL_OUTCOME" "$DELIVERY_OUTCOME" "$PR_URL" "$RECEIPT_MERGED_COMMIT"
 # Remove the per-task temp root (/tmp/fm-<id>/, incl. its gotmp/) recorded by spawn.
 # Read before the state-file rm below; empty (pre-fix tasks without tasktmp=) is a no-op.
 [ -n "$TASK_TMP" ] && rm -rf "$TASK_TMP"
