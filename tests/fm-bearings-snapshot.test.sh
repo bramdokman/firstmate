@@ -1889,6 +1889,90 @@ EOF
   pass "main and secondmate captain actionability use the same blocker readiness"
 }
 
+# A registered secondmate whose OWN structured-home summary is itself larger than a
+# single process argument comfortably carries. Every bounded surface in the summary is
+# item-capped, so the size comes from the one surface that is not: the per-row blocker
+# id arrays, which the parent must still route into the aggregation intact.
+write_large_secondmate_home() {  # <parent-home> <mate-home>
+  local home=$1 mate=$2 pad blockers i=1 j
+  mkdir -p "$mate/state" "$mate/data" "$mate/config" "$mate/projects" "$mate/bin"
+  printf '# Firstmate fixture\n' > "$mate/AGENTS.md"
+  printf 'bigmate\n' > "$mate/.fm-secondmate-home"
+  printf -- '- bigmate - large home (home: %s; scope: large fixture work; projects: firstmate; added 2026-07-11)\n' \
+    "$mate" > "$home/data/secondmates.md"
+  fm_write_secondmate_meta "$home/state/bigmate.meta" "$mate" "firstmate:fm-bigmate" firstmate
+  printf 'working: large home fixture\n' > "$home/state/bigmate.status"
+  pad=$(printf '%090d' 0 | tr '0' b)
+  printf '## In flight\n\n## Queued\n' > "$mate/data/backlog.md"
+  while [ "$i" -le 20 ]; do
+    blockers=''
+    j=1
+    while [ "$j" -le 17 ]; do
+      blockers=$(printf '%s blocked-by: mate-blocker-%02d-%02d-%s' "$blockers" "$i" "$j" "$pad")
+      j=$((j + 1))
+    done
+    printf -- '- [ ] mate-q-%02d - Large secondmate gate %02d%s (repo: firstmate) (kind: ship)\n' \
+      "$i" "$i" "$blockers" >> "$mate/data/backlog.md"
+    i=$((i + 1))
+  done
+  printf '\n## Done\n' >> "$mate/data/backlog.md"
+}
+
+secondmate_home_summary_bytes() {  # <mate-home>
+  local mate=$1
+  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$mate" \
+    FM_STATE_OVERRIDE="$mate/state" FM_DATA_OVERRIDE="$mate/data" \
+    FM_CONFIG_OVERRIDE="$mate/config" FM_PROJECTS_OVERRIDE="$mate/projects" \
+    FM_SNAPSHOT_NOW=2026-07-11T18:00:00Z \
+    "$ROOT/bin/fm-fleet-snapshot.sh" --secondmate-home-summary \
+    | LC_ALL=C wc -c | tr -d ' '
+}
+
+test_large_backlog_completes_end_to_end() {
+  local home mate fakebin filler json fixture_bytes summary_bytes i=1
+  home=$(make_home large-backlog)
+  mate="$TMP_ROOT/large-backlog-bigmate-home"
+  printf '## In flight\n\n## Queued\n' > "$home/data/backlog.md"
+  filler=$(printf '%0360d' 0 | tr '0' x)
+  while [ "$i" -le 400 ]; do
+    printf -- '- [ ] queued-%03d - Large fixture item %03d %s (repo: firstmate) (kind: ship)\n' \
+      "$i" "$i" "$filler" >> "$home/data/backlog.md"
+    i=$((i + 1))
+  done
+  printf '\n## Done\n' >> "$home/data/backlog.md"
+  fixture_bytes=$(LC_ALL=C wc -c < "$home/data/backlog.md" | tr -d ' ')
+  [ "$fixture_bytes" -gt $((128 * 1024)) ] \
+    || fail "large backlog fixture was only $fixture_bytes bytes"
+
+  write_large_secondmate_home "$home" "$mate"
+  summary_bytes=$(secondmate_home_summary_bytes "$mate")
+  [ "$summary_bytes" -gt $((128 * 1024)) ] \
+    || fail "large secondmate home summary was only $summary_bytes bytes"
+  [ "$summary_bytes" -le $((256 * 1024)) ] \
+    || fail "large secondmate home summary exceeded the parent byte limit at $summary_bytes bytes"
+
+  fakebin=$(make_fakebin "$home")
+  : > "$home/net.log"
+  json=$(run "$home" "$fakebin" --json --all-decisions --all-queued)
+  printf '%s' "$json" | jq -e '
+    ([.gates[] | select(.owner == "(main)")] | map(.id)) as $main
+    | ([.gates[] | select(.owner == "bigmate")] | map(.id)) as $mate
+    | .schema == "fm-bearings.v1"
+      and ($main | length) == 400
+      and ($main | first) == "queued-001"
+      and ($main | last) == "queued-400"
+      and ($mate | length) == 20
+      and ($mate | first) == "mate-q-01"
+      and ($mate | last) == "mate-q-20"
+      and (.gates | length) == 420
+      and (.secondmates | any(.[];
+        .id == "bigmate" and .provenance == "structured-home" and .state == "externally_held"))
+  ' >/dev/null || fail "large backlog and secondmate home did not complete through the full Bearings projection"
+  [ ! -s "$home/net.log" ] || fail "large local snapshot made a network call: $(cat "$home/net.log")"
+  pass "a >128 KiB backlog and a >128 KiB secondmate home summary complete through the full Bearings projection"
+}
+
+test_large_backlog_completes_end_to_end
 test_domain_alpha_stale_parent_event_does_not_become_current_work
 test_gnu_stat_uses_file_formats_without_bsd_fallback_pollution
 test_parent_activity_evidence_is_bounded_and_disclosed
