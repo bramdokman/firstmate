@@ -80,7 +80,7 @@ SH
     FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
     FM_SPAWN_NO_GUARD=1 TMUX='fake,1,0' FM_FAKE_PANE_PATH="$worktree" \
     FM_FAKE_CALL_LOG="$calls" \
-    PATH="$fakebin:$PATH" "$SPAWN" "$id" "$project" 2>&1)
+    PATH="$fakebin:$PATH" "$SPAWN" "$id" "$project" --mode no-mistakes --yolo off 2>&1)
   status=$?
   set -e
 
@@ -411,7 +411,7 @@ test_spawn_never_returns_an_unvalidated_worktree() {
     FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
     FM_SPAWN_NO_GUARD=1 TMUX='fake,1,0' FM_FAKE_PANE_PATH="$stray" \
     FM_FAKE_CALL_LOG="$calls" \
-    PATH="$fakebin:$PATH" "$SPAWN" "$id" "$project" 2>&1)
+    PATH="$fakebin:$PATH" "$SPAWN" "$id" "$project" --mode no-mistakes --yolo off 2>&1)
   status=$?
   set -e
 
