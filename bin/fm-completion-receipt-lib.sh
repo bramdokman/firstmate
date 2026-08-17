@@ -13,6 +13,9 @@
 # dispatch_time_source is spawn_meta when state/<id>.meta contains the real
 # metadata-persistence event time, or unavailable_legacy_meta for older tasks;
 # filesystem mtimes are never substituted for event time.
+# backend uses the task's backend= value, then remote_backend= for a remote
+# secondmate record owned by its supervising parent, and otherwise defaults to
+# the historical tmux meaning of an absent backend field.
 # status_event_counts contains integer keys needs-decision, blocked, paused,
 # resolved, and failed, counted with the canonical status-line verb parser owned
 # by bin/fm-classify-lib.sh, so the optional "[key=<slug>]" token that sits
@@ -116,6 +119,7 @@ fm_completion_receipt_append() (
   model=$(fm_completion_receipt_meta_get "$meta" model)
   effort=$(fm_completion_receipt_meta_get "$meta" effort)
   backend=$(fm_completion_receipt_meta_get "$meta" backend)
+  [ -n "$backend" ] || backend=$(fm_completion_receipt_meta_get "$meta" remote_backend)
   [ -n "$backend" ] || backend=tmux
   yolo=$(fm_completion_receipt_meta_get "$meta" yolo)
   if [ -n "$dispatch_time" ]; then

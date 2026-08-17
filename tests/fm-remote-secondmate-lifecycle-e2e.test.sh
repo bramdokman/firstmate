@@ -1000,6 +1000,28 @@ fi
 assert_absent "$REMOTE_HOME" "remote retirement did not remove the remote home"
 assert_absent "$PARENT/state/ios.meta" "remote retirement did not remove parent metadata"
 assert_no_grep '- ios ' "$PARENT/data/secondmates.md" "remote retirement did not remove the registry route"
+REMOTE_RECEIPTS="$PARENT/data/completion-receipts.jsonl"
+[ -f "$REMOTE_RECEIPTS" ] || fail "remote retirement did not retain a parent-home completion receipt"
+jq -s -e --arg project "$REMOTE_ROOT" --arg worktree "$REMOTE_HOME" '
+  [.[] | select(.task_id == "ios")] as $receipts |
+  ($receipts | length) == 1 and
+  $receipts[0].schema_version == 1 and
+  $receipts[0].kind == "secondmate" and
+  $receipts[0].project == $project and
+  $receipts[0].worktree == $worktree and
+  $receipts[0].endpoint_task_id == "ios" and
+  $receipts[0].delivery_mode == "secondmate" and
+  $receipts[0].harness == "codex" and
+  $receipts[0].backend == "herdr" and
+  $receipts[0].dispatch_time_source == "spawn_meta" and
+  ($receipts[0].dispatch_time | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
+  ($receipts[0].teardown_time | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
+  $receipts[0].terminal_outcome == "completed" and
+  $receipts[0].delivery_outcome == "retired" and
+  $receipts[0].pr_url == null and
+  $receipts[0].merged_commit == null
+' "$REMOTE_RECEIPTS" >/dev/null \
+  || fail "remote retirement did not retain exactly one correctly typed parent-home completion receipt"
 jq -e --arg workspace "$SIBLING_WORKSPACE" --arg pane "$SIBLING_PANE" '
   any(.workspaces[]; .workspace_id == $workspace and .label == "2ndmate-macos")
   and any(.tabs[]; .workspace_id == $workspace and .pane_id == $pane)

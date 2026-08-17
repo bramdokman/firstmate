@@ -9,6 +9,9 @@
 # Cleanup deletes the task's volatile metadata and status events, so before that
 # happens teardown retains one durable typed completion receipt per task - and
 # per discarded secondmate child - in data/completion-receipts.jsonl.
+# A remote secondmate's supervising parent writes its receipt into the parent
+# data ledger after the remote host confirms retirement and before parent state
+# is removed; the host-local endpoint teardown delegates that one receipt.
 # bin/fm-completion-receipt-lib.sh owns the exact schema, its dedupe across a
 # retried teardown, and the locked append; this script owns the two outcome
 # vocabularies it supplies:
@@ -168,6 +171,19 @@ FM_LOCK_LOG_PREFIX=teardown
 META="$STATE/$ID.meta"
 [ -f "$META" ] || { echo "error: no meta for task $ID at $META" >&2; exit 1; }
 
+write_completion_receipt_best_effort() {
+  local id=$1 meta=$2 status=$3 terminal_outcome=$4 delivery_outcome=$5
+  local pr_url=$6 merged_commit=$7 teardown_time
+  if ! teardown_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null); then
+    echo "warning: completion receipt for $id could not record teardown time; continuing cleanup" >&2
+    return 0
+  fi
+  if ! fm_completion_receipt_append "$DATA" "$id" "$meta" "$status" \
+      "$teardown_time" "$terminal_outcome" "$delivery_outcome" "$pr_url" "$merged_commit"; then
+    echo "warning: completion receipt for $id could not be written; continuing cleanup" >&2
+  fi
+}
+
 REMOTE_HANDOFF_DIR_PRESENT=0
 REMOTE_HANDOFF_DIR_REAL=
 REMOTE_OUTBOX_PRESENT=0
@@ -273,6 +289,7 @@ remote_outbox_cleanup() {
 
 remote_secondmate_teardown() {
   local remote_host remote_root remote_home kind route_host route_root route_home out rc tmp rec phase task_id
+  local terminal_outcome=completed delivery_outcome=retired
   remote_host=$(fm_meta_get "$META" remote_host)
   [ -n "$remote_host" ] || return 3
   kind=$(fm_meta_get "$META" kind)
@@ -340,6 +357,12 @@ remote_secondmate_teardown() {
   tmp="$SECONDMATE_REG.tmp.$$"
   grep -vE "^- $ID( |$)" "$SECONDMATE_REG" > "$tmp" || true
   mv -f -- "$tmp" "$SECONDMATE_REG"
+  if [ "$FORCE" = --force ]; then
+    terminal_outcome=discarded
+    delivery_outcome=discarded
+  fi
+  write_completion_receipt_best_effort "$ID" "$META" "$STATE/$ID.status" \
+    "$terminal_outcome" "$delivery_outcome" "" ""
   rm -f -- "$STATE/$ID.status" "$STATE/$ID.meta" "$STATE/$ID.turn-ended"
   printf 'teardown %s complete (remote %s:%s)\n' "$ID" "$remote_host" "$remote_home"
   return 0
@@ -961,19 +984,6 @@ refresh_completion_merge_commit() {
   case "$state" in MERGED|merged) ;; *) return 0 ;; esac
   merge_sha=$(printf '%s' "$view" | jq -r '.mergeCommit.oid // empty' 2>/dev/null) || return 0
   RECEIPT_MERGED_COMMIT=$merge_sha
-}
-
-write_completion_receipt_best_effort() {
-  local id=$1 meta=$2 status=$3 terminal_outcome=$4 delivery_outcome=$5
-  local pr_url=$6 merged_commit=$7 teardown_time
-  if ! teardown_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null); then
-    echo "warning: completion receipt for $id could not record teardown time; continuing cleanup" >&2
-    return 0
-  fi
-  if ! fm_completion_receipt_append "$DATA" "$id" "$meta" "$status" \
-      "$teardown_time" "$terminal_outcome" "$delivery_outcome" "$pr_url" "$merged_commit"; then
-    echo "warning: completion receipt for $id could not be written; continuing cleanup" >&2
-  fi
 }
 
 # A squash merge lands the whole branch as one new commit on the base. That merge
@@ -2288,8 +2298,10 @@ else
     DELIVERY_OUTCOME=pr_recorded
   fi
 fi
-write_completion_receipt_best_effort "$ID" "$META" "$STATE/$ID.status" \
-  "$TERMINAL_OUTCOME" "$DELIVERY_OUTCOME" "$PR_URL" "$RECEIPT_MERGED_COMMIT"
+if [ "${FM_TEARDOWN_TASK_RECEIPT_DELEGATED:-0}" != 1 ]; then
+  write_completion_receipt_best_effort "$ID" "$META" "$STATE/$ID.status" \
+    "$TERMINAL_OUTCOME" "$DELIVERY_OUTCOME" "$PR_URL" "$RECEIPT_MERGED_COMMIT"
+fi
 # Remove the per-task temp root (/tmp/fm-<id>/, incl. its gotmp/) recorded by spawn.
 # Read before the state-file rm below; empty (pre-fix tasks without tasktmp=) is a no-op.
 [ -n "$TASK_TMP" ] && rm -rf "$TASK_TMP"

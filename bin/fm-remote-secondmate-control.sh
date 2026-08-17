@@ -26,6 +26,9 @@
 # state/*.meta remains reserved for workers the secondmate supervises.
 # Retirement closes only this secondmate's panes or workspace and never
 # stops fm-remote or removes a sibling secondmate's workspace or panes.
+# The supervising parent home owns the remote secondmate completion receipt.
+# Retirement therefore delegates only this top-level receipt while keeping
+# fm-teardown's ordinary forced-child receipt behavior intact.
 #
 # The optional launch traceparent is the per-task W3C trace-context carrier the
 # PARENT home resolved for this secondmate; this host only delivers it to the
@@ -277,11 +280,13 @@ cmd_retire() {
     FM_HOME="$FM_ROOT" FM_ROOT_OVERRIDE="$FM_ROOT" \
       FM_STATE_OVERRIDE="$CONTROL_STATE" FM_DATA_OVERRIDE="$CONTROL_DATA" \
       FM_CONFIG_OVERRIDE="$TARGET_HOME/config" FM_TEARDOWN_GUARD_DONE=1 \
+      FM_TEARDOWN_TASK_RECEIPT_DELEGATED=1 \
       "$SCRIPT_DIR/fm-teardown.sh" "$id" --force
   else
     FM_HOME="$FM_ROOT" FM_ROOT_OVERRIDE="$FM_ROOT" \
       FM_STATE_OVERRIDE="$CONTROL_STATE" FM_DATA_OVERRIDE="$CONTROL_DATA" \
       FM_CONFIG_OVERRIDE="$TARGET_HOME/config" FM_TEARDOWN_GUARD_DONE=1 \
+      FM_TEARDOWN_TASK_RECEIPT_DELEGATED=1 \
       "$SCRIPT_DIR/fm-teardown.sh" "$id"
   fi
 }
