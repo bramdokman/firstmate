@@ -30,6 +30,7 @@
 #   (o) reference to a PR number       -> silent (issues and PRs share numbers)
 #   (p) colon keyword form             -> "Fixes: #N" is a closing ref;
 #                                         prose like "prefixes: #N" still is not
+#   (q) brief fallback                 -> ignored when the PR body has a ref
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -238,6 +239,21 @@ test_brief_source_is_used() {
   pass "the task brief supplies candidates the PR body lacks"
 }
 
+test_brief_is_ignored_when_body_has_reference() {
+  local case_dir
+  case_dir=$(make_case brief-fallback)
+  gh_data_mock "$case_dir"
+  printf 'Fixes #7.\n' > "$case_dir/data/pr_body"
+  printf 'Old context: fixes #12.\n' > "$case_dir/brief.md"
+  printf 'OPEN\n' > "$case_dir/data/issue_7"
+  printf 'OPEN\n' > "$case_dir/data/issue_12"
+  run_closure "$case_dir" "$PR_URL" --brief "$case_dir/brief.md"
+  expect_code 0 "$RC" "brief-fallback: exit must be 0"
+  assert_contains "$OUT" "#7" "brief-fallback: the PR body's issue must be reported"
+  assert_not_contains "$OUT" "#12" "brief-fallback: the brief must not supplement a PR body reference"
+  pass "the task brief is only a fallback when the PR body has no reference"
+}
+
 test_brief_without_reference_is_silent() {
   local case_dir
   case_dir=$(make_case brief-silent)
@@ -357,6 +373,7 @@ test_multiple_issues_report_only_open
 test_one_issue_lookup_failure_continues
 test_closing_references_source_is_used
 test_brief_source_is_used
+test_brief_is_ignored_when_body_has_reference
 test_brief_without_reference_is_silent
 test_gitlab_is_silent
 test_word_boundary_rejects_prose

@@ -99,7 +99,7 @@ issue_refs_from_text() {
 }
 
 main() {
-  local pr_state body closing_refs brief_text candidates n state
+  local pr_state body body_refs closing_refs brief_text candidates n state
   # Confirm the PR is merged first: this runs after landing, and an unmerged PR's
   # closing references are not this check's concern.
   if ! pr_state=$(gh pr view "$PR_URL" --json state -q .state 2>/dev/null); then
@@ -124,9 +124,14 @@ main() {
     brief_text=$(cat -- "$BRIEF" 2>/dev/null || true)
   fi
 
+  body_refs=$(printf '%s\n' "$body" | issue_refs_from_text)
   candidates=$(
     {
-      { printf '%s\n' "$body"; [ -z "$brief_text" ] || printf '%s\n' "$brief_text"; } | issue_refs_from_text
+      if [ -n "$body_refs" ]; then
+        printf '%s\n' "$body_refs"
+      elif [ -n "$brief_text" ]; then
+        printf '%s\n' "$brief_text" | issue_refs_from_text
+      fi
       printf '%s\n' "$closing_refs" | grep -E '^[0-9]+$' || true
     } | sort -n | uniq
   )
