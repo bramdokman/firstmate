@@ -1144,9 +1144,13 @@ spawn_abort_cleanup() {
   if [ "$ENDPOINT_ABORT_CLEANUP" = 1 ]; then
     ENDPOINT_ABORT_CLEANUP=0
     if [ -n "${T:-}" ]; then
-      fm_backend_kill "$BACKEND" "$T" "${ZELLIJ_TAB_ID:-}" "$W" 2>/dev/null || true
-      # A refusal above may have said to inspect this endpoint; it is gone now.
-      echo "note: endpoint $T for $ID was closed after the failed spawn, so there is no window left to inspect" >&2
+      # A refusal above may have said to inspect this endpoint; say what
+      # actually happened to it rather than asserting a close that failed.
+      if fm_backend_kill "$BACKEND" "$T" "${ZELLIJ_TAB_ID:-}" "$W" 2>/dev/null; then
+        echo "note: endpoint $T for $ID was closed after the failed spawn, so there is no window left to inspect" >&2
+      else
+        echo "warning: endpoint $T for $ID may still be live after the failed spawn; inspect and close it manually" >&2
+      fi
     fi
     # Only the exact acquisition validate_spawn_worktree accepted is returned,
     # never a bare pane reading that merely differed from the project path.
