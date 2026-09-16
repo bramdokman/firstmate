@@ -2,7 +2,7 @@
 # Execute one tracked Firstmate command in a configured remote secondmate home.
 #
 # Usage:
-#   fm-on.sh <secondmate-id|unambiguous-ssh-alias> <fm-command> [args...]
+#   fm-on.sh [--stdin] <secondmate-id|unambiguous-ssh-alias> <fm-command> [args...]
 #
 # Routes come only from remote records in data/secondmates.md. A record names an
 # SSH config alias, remote Firstmate code root, and remote FM_HOME. A host alias
@@ -11,16 +11,27 @@
 # bin/fm-*.sh namespace. No per-command table exists.
 #
 # argv is encoded as one NUL-delimited stream and passed through the fixed
-# fm-remote-entrypoint.sh. stdin remains the caller's stdin, stdout and stderr
-# remain separate, and ssh's exit status is returned unchanged. OpenSSH never
-# receives an auto-retry instruction here. Exit 255 therefore means unavailable
-# transport or unknown remote completion and must be reconciled by the semantic
-# caller, never blindly repeated by this layer.
+# fm-remote-entrypoint.sh. The remote command's stdin is /dev/null by default,
+# because remote staging captures stdin to EOF and an open caller stream would
+# block staging indefinitely; a payload caller passes --stdin to forward its
+# own stream as the job's bounded input. stdout and stderr remain separate, and
+# ssh's exit status is returned unchanged. OpenSSH never receives an auto-retry
+# instruction here. Exit 255 therefore means unavailable transport or unknown
+# remote completion and must be reconciled by the semantic caller, never
+# blindly repeated by this layer.
 #
 # The SSH alias keeps normal public-key and strict host-key policy in ~/.ssh.
 # This command explicitly disables agent forwarding, forwarding setup, and
 # configured SendEnv patterns. The remote entrypoint executes the selected
 # command under an empty environment with only its fixed runtime values.
+#
+# ServerAliveInterval/ServerAliveCountMax arm dead-peer detection so a vanished
+# peer (a reboot, a dropped link) becomes a bounded ssh failure (exit 255)
+# instead of an indefinite hang on a half-open TCP connection. The remote
+# sshd answers keepalive probes independently of whatever the remote command
+# is doing, so a legitimately long-but-alive remote command is never falsely
+# killed. FM_SSH_ALIVE_INTERVAL and FM_SSH_ALIVE_COUNT_MAX override the
+# defaults; the worst-case detection window is roughly interval * count.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,12 +45,17 @@ PROTOCOL=1
 . "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
-usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 encode_base64() {
   base64 | tr -d '\n'
 }
 
+STDIN_MODE=closed
+if [ "${1:-}" = --stdin ]; then
+  STDIN_MODE=caller
+  shift
+fi
 [ "$#" -ge 2 ] || usage
 ROUTE=$1
 COMMAND=$2
@@ -88,9 +104,22 @@ ROOT_B64=$(printf '%s' "$ROOT" | encode_base64)
 HOME_B64=$(printf '%s' "$HOME_PATH" | encode_base64)
 ARGV_B64=$(printf '%s\0' "$COMMAND" "$@" | encode_base64)
 SSH_BIN=${FM_SSH_BIN:-ssh}
+ALIVE_INTERVAL=${FM_SSH_ALIVE_INTERVAL:-15}
+ALIVE_COUNT_MAX=${FM_SSH_ALIVE_COUNT_MAX:-3}
+case "$ALIVE_INTERVAL" in ''|*[!0-9]*) die "FM_SSH_ALIVE_INTERVAL must be a positive integer: $ALIVE_INTERVAL" ;; esac
+case "$ALIVE_COUNT_MAX" in ''|*[!0-9]*) die "FM_SSH_ALIVE_COUNT_MAX must be a positive integer: $ALIVE_COUNT_MAX" ;; esac
+[ "$ALIVE_INTERVAL" -gt 0 ] || die "FM_SSH_ALIVE_INTERVAL must be a positive integer: $ALIVE_INTERVAL"
+[ "$ALIVE_COUNT_MAX" -gt 0 ] || die "FM_SSH_ALIVE_COUNT_MAX must be a positive integer: $ALIVE_COUNT_MAX"
 
-"$SSH_BIN" \
-  -o ForwardAgent=no \
-  -o ClearAllForwardings=yes \
-  -o 'SendEnv=-*' \
+SSH_ARGS=(
+  -o ForwardAgent=no
+  -o ClearAllForwardings=yes
+  -o 'SendEnv=-*'
+  -o "ServerAliveInterval=$ALIVE_INTERVAL"
+  -o "ServerAliveCountMax=$ALIVE_COUNT_MAX"
   -- "$HOST" fm-remote-entrypoint.sh "$PROTOCOL" "$ROOT_B64" "$HOME_B64" "$ARGV_B64"
+)
+if [ "$STDIN_MODE" = caller ]; then
+  exec "$SSH_BIN" "${SSH_ARGS[@]}"
+fi
+exec "$SSH_BIN" "${SSH_ARGS[@]}" < /dev/null
