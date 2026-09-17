@@ -1,0 +1,11 @@
+$ git show -s --format=%H%n%P 9edd13d3
+9edd13d3cee343ef26a430632253370731c9c324
+bdef528a522848521983ebddf90599905ede4fe5 af1f2ea37849a2b533097b2c5bcb931ceab24adf
+$ git merge-base --is-ancestor af1f2ea3 HEAD
+exit=0
+$ upstream-verbatim retirement checks
+upstream-verbatim: bin/backends/herdr.sh
+upstream-verbatim: bin/fm-send.sh
+upstream-verbatim: tests/fm-backend-herdr.test.sh
+upstream-verbatim: bin/fm-fleet-snapshot.sh
+$ git status --short
