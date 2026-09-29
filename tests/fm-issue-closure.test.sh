@@ -22,8 +22,7 @@
 #   (g) one issue lookup fails         -> warn on stderr, still report the rest
 #   (h) closingIssuesReferences source -> a commit-message-only ref is caught
 #   (i) brief source                   -> a reference only in the brief is caught
-#   (j) GitLab merge request           -> silent (out of scope)
-#   (p) Gerrit change                  -> silent (out of scope, no warning)
+#   (j) GitLab merge request           -> silent (out of scope, no gh call)
 #   (k) word boundary                  -> "prefixes #5" is NOT a closing ref
 #   (l) cross-repo reference           -> ignored (not resolved against this repo)
 #   (m) owner/repo#N and full URL form -> same-repo forms are recognized
@@ -32,6 +31,7 @@
 #   (p) colon keyword form             -> "Fixes: #N" is a closing ref;
 #                                         prose like "prefixes: #N" still is not
 #   (q) brief fallback                 -> ignored when the PR body has a ref
+#   (r) Gerrit change                  -> silent (out of scope, no warning, no gh call)
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -77,6 +77,7 @@ run_closure() {
 #   fail        any content -> gh always exits 1 (lookup failure)
 #   issue_<n>   state for issue #<n> (OPEN/CLOSED, or pull-request when #<n>
 #               is actually a PR); absent -> lookup fails
+# Every invocation is appended to gh.calls, so a test can prove no lookup ran.
 gh_data_mock() {
   local case_dir=$1
   mkdir -p "$case_dir/data"
@@ -84,6 +85,7 @@ gh_data_mock() {
 #!/usr/bin/env bash
 set -u
 D="${FM_CLOSURE_DATA:?}"
+printf '%s\n' "$*" >> "$D/gh.calls"
 [ -f "$D/fail" ] && { echo "error: gh unavailable" >&2; exit 1; }
 state=MERGED
 [ -f "$D/pr_state" ] && state=$(cat "$D/pr_state")
@@ -274,6 +276,7 @@ test_gitlab_is_silent() {
   run_closure "$case_dir" 'https://gitlab.example.com/group/proj/-/merge_requests/5'
   expect_code 0 "$RC" "gitlab: exit must be 0"
   [ -z "$OUT" ] || fail "gitlab: merge-request closure is out of scope, expected silence, got: $OUT"
+  [ ! -e "$case_dir/data/gh.calls" ] || fail "gitlab: a merge request must never be looked up with gh, got: $(cat "$case_dir/data/gh.calls")"
   pass "a GitLab merge request is out of scope and stays silent"
 }
 
@@ -284,7 +287,8 @@ test_gerrit_is_silent() {
   run_closure "$case_dir" 'https://gerrit.example/c/group/proj/+/4201'
   expect_code 0 "$RC" "gerrit: exit must be 0"
   [ -z "$OUT" ] || fail "gerrit: change closure is out of scope, expected silence, got: $OUT"
-  [ -z "$ERR" ] || fail "gerrit: a valid change URL must not be reported as invalid or looked up, got: $ERR"
+  [ -z "$ERR" ] || fail "gerrit: a valid change URL must not be reported as invalid, got: $ERR"
+  [ ! -e "$case_dir/data/gh.calls" ] || fail "gerrit: a change must never be looked up with gh, got: $(cat "$case_dir/data/gh.calls")"
   pass "a Gerrit change is out of scope and stays silent"
 }
 

@@ -19,7 +19,7 @@
 # Candidate issue numbers are unioned and deduplicated, scoped to the PR's own
 # repository, from the PR body and GitHub's references:
 #   - the PR body, parsed for GitHub's closing-keyword grammar
-#     (close[sd]|fix(es|ed)?|resolve[ds]), optionally followed by a colon, then
+#     (close[ds]?|fix(es|ed)?|resolve[ds]?), optionally followed by a colon, then
 #     #N, owner/repo#N, or a full issue URL. GitHub may have silently ignored
 #     exactly these keywords.
 #   - GitHub's closingIssuesReferences for the PR, which captures references
