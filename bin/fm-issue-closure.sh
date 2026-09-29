@@ -13,8 +13,8 @@
 #
 # It is best-effort and never blocks its caller: it always exits 0. A lookup
 # failure (network down, gh error, missing issue) is reported on stderr and the
-# merge is left unaffected. GitLab merge requests are out of scope and exit
-# silently; the measured failure mode is GitHub-specific.
+# merge is left unaffected. GitLab merge requests and Gerrit changes are out of
+# scope and exit silently; the measured failure mode is GitHub-specific.
 #
 # Candidate issue numbers are unioned and deduplicated, scoped to the PR's own
 # repository, from the PR body and GitHub's references:
@@ -69,7 +69,7 @@ if ! fm_pr_url_parse "$PR_URL"; then
   exit 0
 fi
 
-# GitLab merge-request closure verification is out of scope; exit silently.
+# GitLab merge-request and Gerrit change closure verification is out of scope; exit silently.
 [ "$FM_PR_PROVIDER" = github ] || exit 0
 
 OWNER=$FM_PR_OWNER

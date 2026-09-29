@@ -23,6 +23,7 @@
 #   (h) closingIssuesReferences source -> a commit-message-only ref is caught
 #   (i) brief source                   -> a reference only in the brief is caught
 #   (j) GitLab merge request           -> silent (out of scope)
+#   (p) Gerrit change                  -> silent (out of scope, no warning)
 #   (k) word boundary                  -> "prefixes #5" is NOT a closing ref
 #   (l) cross-repo reference           -> ignored (not resolved against this repo)
 #   (m) owner/repo#N and full URL form -> same-repo forms are recognized
@@ -276,6 +277,17 @@ test_gitlab_is_silent() {
   pass "a GitLab merge request is out of scope and stays silent"
 }
 
+test_gerrit_is_silent() {
+  local case_dir
+  case_dir=$(make_case gerrit)
+  gh_data_mock "$case_dir"
+  run_closure "$case_dir" 'https://gerrit.example/c/group/proj/+/4201'
+  expect_code 0 "$RC" "gerrit: exit must be 0"
+  [ -z "$OUT" ] || fail "gerrit: change closure is out of scope, expected silence, got: $OUT"
+  [ -z "$ERR" ] || fail "gerrit: a valid change URL must not be reported as invalid or looked up, got: $ERR"
+  pass "a Gerrit change is out of scope and stays silent"
+}
+
 test_word_boundary_rejects_prose() {
   local case_dir
   case_dir=$(make_case word-boundary)
@@ -376,6 +388,7 @@ test_brief_source_is_used
 test_brief_is_ignored_when_body_has_reference
 test_brief_without_reference_is_silent
 test_gitlab_is_silent
+test_gerrit_is_silent
 test_word_boundary_rejects_prose
 test_cross_repo_reference_ignored
 test_ownerrepo_and_url_forms_recognized
