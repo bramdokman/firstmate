@@ -1,0 +1,17 @@
+$ fm-bootstrap.sh (merged validator) with the primary home's real config/crew-dispatch.json, FM_BOOTSTRAP_VERBOSE_FACTS=1
+BOOTSTRAP_INFO: crew dispatch active config/crew-dispatch.json
+BOOTSTRAP_INFO: crew dispatch rule: The task is a trivial mechanical edit: a rote rename, a formatting sweep, a targeted typo fix, a dependency bump, or simple file gathering with no design judgement required. -> quota-balanced[claude/haiku/low]
+BOOTSTRAP_INFO: crew dispatch rule: The task is routine implementation against a clear, already-agreed spec: a well-scoped feature, a straightforward bug fix, or test coverage for existing behaviour. -> quota-balanced[claude/opus/high, codex/default/high, opencode/zai-coding-plan/glm-5.2]
+BOOTSTRAP_INFO: crew dispatch rule: The task is a large or ambiguous multi-file feature, a risky refactor, a migration, or work that requires holding many moving parts in mind at once. -> quota-balanced[claude/opus/xhigh, codex/default/xhigh, opencode/google/antigravity-gemini-3.1-pro]
+BOOTSTRAP_INFO: crew dispatch rule: The task is an investigation, a scout report, an architecture or design exploration, a security review, or a debugging problem whose cause is genuinely unknown. -> quota-balanced[claude/opus/xhigh, codex/default/xhigh]
+BOOTSTRAP_INFO: crew dispatch rule: The task depends on fresh news, current events, live public facts, or very recent product and market changes. -> quota-balanced[claude/sonnet/medium]
+BOOTSTRAP_INFO: crew dispatch default: quota-balanced[claude/opus/high, codex/default/high]
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+exit=0
+
+$ adversarial: same config with an unverified harness injected
+CREW_DISPATCH: invalid config/crew-dispatch.json - unverified harness: spaceship
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+exit=0

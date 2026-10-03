@@ -1,0 +1,28 @@
+$ fm-spawn.sh acct-raw-z1 <project> 'CLAUDE_CONFIG_DIR=/home/bd/.claude-acct2 claude __MODELFLAG____EFFORTFLAG__--dangerously-skip-permissions "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' --model M1 --effort high --mode no-mistakes --yolo off   (real config/crew-dispatch.json active)
+exit=0
+/tmp/fm-spawn-dispatch-profile.gjCuJX/acct1/fake/fakebin/timeout: line 3: exec: 1: not found
+/tmp/fm-spawn-dispatch-profile.gjCuJX/acct1/fake/fakebin/timeout: line 3: exec: 1: not found
+spawned acct-raw-z1 harness=claude kind=ship mode=no-mistakes yolo=off window=firstmate:fm-acct-raw-z1 worktree=/tmp/fm-spawn-dispatch-profile.gjCuJX/acct1/wt
+--- meta:
+harness=claude
+model=M1
+effort=high
+--- launch text sent to the pane:
+export COMPACT_ADVISER_DISABLE=1; export FM_TASK_INBOX='/tmp/fm-spawn-dispatch-profile.gjCuJX/acct1/home/state/acct-raw-z1.inbox'; export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0='/tmp/fm-spawn-dispatch-profile.gjCuJX/acct1/home/state/acct-raw-z1.git-hooks'; env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI CLAUDE_CONFIG_DIR=/home/bd/.claude-acct2 claude --model 'M1' --effort 'high' --dangerously-skip-permissions "$('/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M3ZW06MCG8FYAT06FQPRAAB6/bin/fm-operational-input.sh' encode launch-brief < '/tmp/fm-spawn-dispatch-profile.gjCuJX/acct1/home/data/acct-raw-z1/launch-brief.md')"
+
+no placeholders left
+
+$ fm-spawn.sh acct-raw-z2 <project> 'CODEX_HOME=/home/bd/.codex-acct3 codex __MODELFLAG____EFFORTFLAG__--dangerously-bypass-approvals-and-sandbox -c "notify=[\"bash\",\"-c\",\"touch __TURNEND__\"]" "$(__OPINPUT__ encode launch-brief < __BRIEF__)"' --model M1 --effort high --mode no-mistakes --yolo off   (real config/crew-dispatch.json active)
+exit=0
+/tmp/fm-spawn-dispatch-profile.gjCuJX/acct2/fake/fakebin/timeout: line 3: exec: 1: not found
+/tmp/fm-spawn-dispatch-profile.gjCuJX/acct2/fake/fakebin/timeout: line 3: exec: 1: not found
+spawned acct-raw-z2 harness=codex kind=ship mode=no-mistakes yolo=off window=firstmate:fm-acct-raw-z2 worktree=/tmp/fm-spawn-dispatch-profile.gjCuJX/acct2/wt
+--- meta:
+harness=codex
+model=M1
+effort=high
+--- launch text sent to the pane:
+export COMPACT_ADVISER_DISABLE=1; export FM_TASK_INBOX='/tmp/fm-spawn-dispatch-profile.gjCuJX/acct2/home/state/acct-raw-z2.inbox'; export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0='/tmp/fm-spawn-dispatch-profile.gjCuJX/acct2/home/state/acct-raw-z2.git-hooks'; env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI CODEX_HOME=/home/bd/.codex-acct3 codex --model 'M1' -c 'model_reasoning_effort="high"' --dangerously-bypass-approvals-and-sandbox -c "notify=[\"bash\",\"-c\",\"touch '/tmp/fm-spawn-dispatch-profile.gjCuJX/acct2/home/state/acct-raw-z2.turn-ended'\"]" "$('/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M3ZW06MCG8FYAT06FQPRAAB6/bin/fm-operational-input.sh' encode launch-brief < '/tmp/fm-spawn-dispatch-profile.gjCuJX/acct2/home/data/acct-raw-z2/launch-brief.md')"
+
+no placeholders left
+

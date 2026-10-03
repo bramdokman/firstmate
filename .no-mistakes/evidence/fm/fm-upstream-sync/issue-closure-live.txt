@@ -1,0 +1,20 @@
+$ # PR body "Fixes #7", stale brief "Fixes #12", both issues OPEN
+$ fm-issue-closure.sh https://github.com/acme/widgets/pull/42 --brief brief.md
+issue-closure: merged PR https://github.com/acme/widgets/pull/42 carried a closing reference for #7 (https://github.com/acme/widgets/issues/7) but GitHub left it OPEN; it may need manual closing.
+exit=0
+
+$ # PR body empty -> brief is the fallback
+issue-closure: merged PR https://github.com/acme/widgets/pull/42 carried a closing reference for #12 (https://github.com/acme/widgets/issues/12) but GitHub left it OPEN; it may need manual closing.
+exit=0
+
+$ # #7 closed -> silence
+exit=0
+
+$ # gh down -> warning, exit 0
+issue-closure: could not verify issue closure for https://github.com/acme/widgets/pull/42 (gh lookup failed); the merge is unaffected.
+exit=0
+
+$ # Gerrit change URL -> silent exit
+exit=0
+$ # GitLab MR URL -> silent exit
+exit=0

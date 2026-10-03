@@ -37,7 +37,7 @@ ok - quoted TOON scope vetoes dispatch
 ok - provider-level unknown quota is not positive
 ok - Muse candidate is accepted
 ok - Muse uses Meta quota
-ok - unsupported harness is rejected
+ok - Agy remains resolver-only
 ok - duplicate providers fail closed
 ok - empty quota scopes fail closed
 ok - whitespace quota identities fail closed
@@ -47,5 +47,14 @@ ok - missing applicable quota is not positive
 ok - any exhausted applicable scope vetoes dispatch
 ok - named model quota matches exact identity only
 ok - invalid availability status fails closed
+ok - native Codex never infers an account from a Pi lane
+ok - native Codex binds to codex-home before default, independently of model and row order
+ok - the same path still selects from a schema 5 snapshot by provider alone
+ok - schema 6 requires accountKey on every row and uniqueness on provider + accountKey
+ok - schema 6 TOON with the accountKey column is accepted
 ok - helper reuses the captured quota snapshot
+ok - provider-table lookup writes nothing to stderr when SIGPIPE is ignored
+ok - provider-table lookup reads the whole table before answering
+ok - provider-table lookup prints the provider when called directly under set -e
 # all fm-quota-choose tests passed
+exit=0

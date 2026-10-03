@@ -1,0 +1,30 @@
+$ fm-brief.sh brief-no-mistakes-q1 p --mode no-mistakes 
+exit=0
+  'A PR must exist' gate present: 1
+  'checks green may describe only checks that actually ran' present: 1
+$ fm-brief.sh brief-direct-pr-q1 p --mode direct-PR 
+exit=0
+  'A PR must exist' gate present: 1
+  'checks green may describe only checks that actually ran' present: 1
+$ fm-brief.sh brief-local-only-q1 p --mode local-only 
+exit=0
+  'A PR must exist' gate present: 0
+  'checks green may describe only checks that actually ran' present: 0
+$ fm-brief.sh brief-direct-pr-gerrit-q1 p --mode direct-PR --forge gerrit
+exit=0
+  'A PR must exist' gate present: 0
+  'checks green may describe only checks that actually ran' present: 0
+
+--- direct-PR brief, Definition of done tail:
+Committing is not delivering: the task is complete only when a PR exists for your branch.
+When it is implemented and committed, push your branch and open a PR with `gh-axi` that is ready for review, not a draft.
+Before you report done, read the PR back from the forge and confirm it is not a draft (`gh-axi pr view <number>` must print `draft: no`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with `gh-axi pr ready <number>`.
+A draft cannot be merged, so a done report on one leaves the merge unasked.
+Then append `done [at=<epoch>]: PR {url}` to the status file and stop.
+That `done:` is accepted only when this copy's HEAD - your latest commit - is pushed to your PR branch; the check tests that commit, not merely that a branch moved.
+If you deliberately keep the PR a draft, append `paused [at=<epoch>]: {why the draft is held}` instead of done.
+Do NOT run /no-mistakes. The configured merge authority decides whether to merge the PR; firstmate relays the outcome.
+
+**Neither half of the delivery report - the done line that names a PR - may be inferred from the absence of a failure.**
+1. A PR must exist and you must have its real URL. A commit, or even a pushed branch, is not a delivered PR - never claim delivery without one: if the report should name a PR and none exists, append `blocked [at=<epoch>]: {what is actually true}` instead.
+2. `checks green` may describe only checks that actually ran and passed. `gh-axi pr checks <number>` printing nothing, reporting no checks, or listing only skipped, queued, or pending runs is NOT green - a fork PR awaiting approval sits at `action_required` and runs nothing. If nothing ran, never write `checks green`: report what you actually see and let firstmate decide.

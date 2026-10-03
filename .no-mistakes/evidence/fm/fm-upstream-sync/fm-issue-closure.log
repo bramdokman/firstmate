@@ -1,4 +1,3 @@
-$ tests/fm-issue-closure.test.sh
 ok - a merged PR that left its issue open produces a report naming the PR and issue
 ok - a merged PR whose issue did close produces no noise
 ok - a merged PR with no closing reference produces no noise
@@ -11,6 +10,7 @@ ok - the task brief supplies candidates the PR body lacks
 ok - the task brief is only a fallback when the PR body has no reference
 ok - a brief without a closing-keyword reference produces no noise
 ok - a GitLab merge request is out of scope and stays silent
+ok - a Gerrit change is out of scope and stays silent
 ok - prose containing keyword substrings is not mistaken for a closing reference
 ok - cross-repository closing references are not resolved against this PR's repo
 ok - owner/repo#N and full issue-URL closing references are recognized
@@ -18,3 +18,5 @@ ok - the colon keyword form 'Fixes: #N' is recognized without loosening the word
 ok - a closing reference to a PR number is not reported as an open issue
 ok - a malformed PR URL is reported and exits zero
 ok - a discrepancy report is never an error exit (never blocks teardown)
+ok - the supervision engine escalates an open-issue discrepancy to the captain and keeps a failed lookup routine
+exit=0

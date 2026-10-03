@@ -10,3 +10,4 @@ ok - only timeout, gtimeout, or node may be pinned as the bounded runner
 ok - declarations without a timeout mode run under the documented 900s default
 ok - an unvalidated pane path is never returned to the treehouse pool
 # all task-bootstrap tests passed
+exit=0

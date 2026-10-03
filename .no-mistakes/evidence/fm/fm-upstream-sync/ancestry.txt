@@ -1,0 +1,16 @@
+$ git log --merges --format="%h parents=%p %s" bdef528a..HEAD
+6e71f6d parents=c650164 e31bc6e chore: merge upstream/main (e31bc6e6) into the upstream sync branch
+12ed0bf parents=b085295 d719ef3 chore: merge upstream/main (d719ef3d) into the upstream sync branch
+b085295 parents=34867d1 b5fdf74 chore: merge upstream/main (b5fdf74d) into the upstream sync branch
+ca5697f parents=8155425 40e981d chore: merge upstream/main (40e981da) into the upstream sync branch, porting fork features
+9edd13d parents=bdef528 af1f2ea chore: merge upstream/main (af1f2ea3) into main, porting fork features
+bdef528a is an ancestor of HEAD
+af1f2ea3 is an ancestor of HEAD
+40e981da is an ancestor of HEAD
+b5fdf74d is an ancestor of HEAD
+d719ef3d is an ancestor of HEAD
+e31bc6e620ca532c2e0e0b72f3fd7c0869a12270 is an ancestor of HEAD
+merge-base(HEAD, upstream e31bc6e6) = e31bc6e620ca532c2e0e0b72f3fd7c0869a12270
+paths differing from upstream e31bc6e6: 19
+Herdr paths differing from upstream: 1
+docs/herdr-backend.md

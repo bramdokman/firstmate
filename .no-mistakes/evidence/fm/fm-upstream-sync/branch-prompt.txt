@@ -1,0 +1,3 @@
+$ fm-branch-prompt.sh | grep -n issue-closure
+40:If the cleanup prints an `issue-closure:` line saying GitHub left an issue OPEN, report that event as verdict captain and name the issue; an `issue-closure:` line saying a lookup could not verify closure stays a routine note in the cleanup outcome.
+byte-identical across environments: yes
