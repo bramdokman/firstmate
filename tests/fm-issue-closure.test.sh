@@ -33,7 +33,8 @@
 #   (q) brief fallback                 -> ignored when the PR body has a ref
 #   (r) Gerrit change                  -> silent (out of scope, no warning, no gh call)
 #   (s) supervision engine cleanup     -> the engine's prompt (bin/fm-branch-prompt.sh)
-#                                         escalates an issue-closure line to the captain
+#                                         sends an OPEN discrepancy to the captain and
+#                                         keeps a failed lookup routine
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -386,14 +387,28 @@ test_branch_engine_relays_issue_closure() {
   # The supervision host and the Pi supervision branch run landed-PR cleanup
   # from the generated branch prompt alone, without the ship-landing skill
   # that tells main to surface an issue-closure discrepancy. The prompt must
-  # carry that relay, or a default-on supervision host swallows the report.
-  local prompt
+  # route the real discrepancy to the captain and keep a failed lookup routine,
+  # keyed on the wording this script actually prints for each.
+  local case_dir prompt
+  case_dir=$(make_case branch-relay-open)
+  gh_data_mock "$case_dir"
+  printf 'This fixes #7.\n' > "$case_dir/data/pr_body"
+  printf 'OPEN\n' > "$case_dir/data/issue_7"
+  run_closure "$case_dir" "$PR_URL"
+  assert_contains "$OUT" "GitHub left it OPEN" "branch-relay: the discrepancy line no longer says GitHub left the issue OPEN"
+  case_dir=$(make_case branch-relay-lookup)
+  gh_data_mock "$case_dir"
+  : > "$case_dir/data/fail"
+  printf 'This fixes #7.\n' > "$case_dir/data/pr_body"
+  run_closure "$case_dir" "$PR_URL"
+  assert_contains "$ERR" "could not verify issue closure" "branch-relay: the lookup-failure line changed its wording"
+
   prompt=$("$ROOT/bin/fm-branch-prompt.sh") || fail "branch-relay: branch prompt generator failed"
   case "$prompt" in
-    *"\`bin/fm-teardown.sh <task>\`"*"\`issue-closure:\` line"*"verdict captain and name the issue"*) ;;
-    *) fail "branch-relay: the supervision engine's prompt does not escalate an issue-closure line to the captain" ;;
+    *"\`bin/fm-teardown.sh <task>\`"*"\`issue-closure:\` line saying GitHub left an issue OPEN, report that event as verdict captain and name the issue"*"\`issue-closure:\` line saying a lookup could not verify closure stays a routine note"*) ;;
+    *) fail "branch-relay: the supervision engine's prompt does not route issue-closure lines (OPEN -> captain, failed lookup -> routine)" ;;
   esac
-  pass "the supervision engine's cleanup escalates an issue-closure discrepancy to the captain"
+  pass "the supervision engine escalates an open-issue discrepancy to the captain and keeps a failed lookup routine"
 }
 
 test_open_issue_is_reported
