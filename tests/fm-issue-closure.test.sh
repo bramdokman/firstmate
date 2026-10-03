@@ -32,6 +32,8 @@
 #                                         prose like "prefixes: #N" still is not
 #   (q) brief fallback                 -> ignored when the PR body has a ref
 #   (r) Gerrit change                  -> silent (out of scope, no warning, no gh call)
+#   (s) supervision engine cleanup     -> the engine's prompt (bin/fm-branch-prompt.sh)
+#                                         escalates an issue-closure line to the captain
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -380,6 +382,20 @@ test_exit_zero_on_discrepancy() {
   pass "a discrepancy report is never an error exit (never blocks teardown)"
 }
 
+test_branch_engine_relays_issue_closure() {
+  # The supervision host and the Pi supervision branch run landed-PR cleanup
+  # from the generated branch prompt alone, without the ship-landing skill
+  # that tells main to surface an issue-closure discrepancy. The prompt must
+  # carry that relay, or a default-on supervision host swallows the report.
+  local prompt
+  prompt=$("$ROOT/bin/fm-branch-prompt.sh") || fail "branch-relay: branch prompt generator failed"
+  case "$prompt" in
+    *"\`bin/fm-teardown.sh <task>\`"*"\`issue-closure:\` line"*"verdict captain and name the issue"*) ;;
+    *) fail "branch-relay: the supervision engine's prompt does not escalate an issue-closure line to the captain" ;;
+  esac
+  pass "the supervision engine's cleanup escalates an issue-closure discrepancy to the captain"
+}
+
 test_open_issue_is_reported
 test_closed_issue_is_silent
 test_no_reference_is_silent
@@ -400,3 +416,4 @@ test_colon_keyword_form_recognized
 test_pr_number_reference_is_silent
 test_malformed_url_exits_zero
 test_exit_zero_on_discrepancy
+test_branch_engine_relays_issue_closure

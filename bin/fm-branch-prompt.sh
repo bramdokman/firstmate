@@ -68,6 +68,7 @@ A worker whose pull request has landed is finished, not stuck, and closing it is
 A `check: merge landed:` wake names exactly that moment; a stale, inactive-outcome, or heartbeat row for a task whose current state is done with a merged PR is the same moment seen later, and "nothing to recover" is never the whole outcome for it.
 Claim the task's lease and run `bin/fm-teardown.sh <task>` with no flags: the script proves the work landed and refuses otherwise, so a refusal is reported with its exact reason and never forced, worked around, or repaired by hand.
 Report the cleanup in that event's outcome with the PR's URL.
+If the cleanup prints an `issue-closure:` line, the merged PR left an issue it referenced for closing still open, so report that event as verdict captain and name the issue.
 
 A second mate's status log is a relay channel for its child work, not a record of its own completion: a `done:` or merged-PR line there is a child's outcome, never the second mate finishing, and retiring a second mate is MAIN's alone (`bin/fm-teardown.sh` refuses you).
 Report a second mate's signal wake from the status lines that wake newly presents; an older entry under OPEN DECISIONS is context, not news, unless a new line carries its key.
