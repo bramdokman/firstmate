@@ -13,13 +13,13 @@
 #
 # It is best-effort and never blocks its caller: it always exits 0. A lookup
 # failure (network down, gh error, missing issue) is reported on stderr and the
-# merge is left unaffected. GitLab merge requests are out of scope and exit
-# silently; the measured failure mode is GitHub-specific.
+# merge is left unaffected. GitLab merge requests and Gerrit changes are out of
+# scope and exit silently; the measured failure mode is GitHub-specific.
 #
 # Candidate issue numbers are unioned and deduplicated, scoped to the PR's own
-# repository, from three sources:
+# repository, from the PR body and GitHub's references:
 #   - the PR body, parsed for GitHub's closing-keyword grammar
-#     (close[sd]|fix(es|ed)?|resolve[ds]), optionally followed by a colon, then
+#     (close[ds]?|fix(es|ed)?|resolve[ds]?), optionally followed by a colon, then
 #     #N, owner/repo#N, or a full issue URL. GitHub may have silently ignored
 #     exactly these keywords.
 #   - GitHub's closingIssuesReferences for the PR, which captures references
@@ -69,7 +69,7 @@ if ! fm_pr_url_parse "$PR_URL"; then
   exit 0
 fi
 
-# GitLab merge-request closure verification is out of scope; exit silently.
+# GitLab merge-request and Gerrit change closure verification is out of scope; exit silently.
 [ "$FM_PR_PROVIDER" = github ] || exit 0
 
 OWNER=$FM_PR_OWNER
@@ -99,7 +99,7 @@ issue_refs_from_text() {
 }
 
 main() {
-  local pr_state body closing_refs brief_text candidates n state
+  local pr_state body body_refs closing_refs brief_text candidates n state
   # Confirm the PR is merged first: this runs after landing, and an unmerged PR's
   # closing references are not this check's concern.
   if ! pr_state=$(gh pr view "$PR_URL" --json state -q .state 2>/dev/null); then
@@ -124,9 +124,14 @@ main() {
     brief_text=$(cat -- "$BRIEF" 2>/dev/null || true)
   fi
 
+  body_refs=$(printf '%s\n' "$body" | issue_refs_from_text)
   candidates=$(
     {
-      { printf '%s\n' "$body"; [ -z "$brief_text" ] || printf '%s\n' "$brief_text"; } | issue_refs_from_text
+      if [ -n "$body_refs" ]; then
+        printf '%s\n' "$body_refs"
+      elif [ -n "$brief_text" ]; then
+        printf '%s\n' "$brief_text" | issue_refs_from_text
+      fi
       printf '%s\n' "$closing_refs" | grep -E '^[0-9]+$' || true
     } | sort -n | uniq
   )

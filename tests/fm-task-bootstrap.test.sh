@@ -17,6 +17,21 @@ track_declaration() {
   git -C "$worktree" add .firstmate/bootstrap
 }
 
+# fm-spawn refuses a brief without nonempty captain-intent and firstmate-spec
+# subsections, so the spawn cases write the minimal accepted shape.
+write_spawn_brief() {  # <home> <task-id>
+  local home=$1 id=$2
+  mkdir -p "$home/data/$id"
+  cat > "$home/data/$id/brief.md" <<EOF
+# Task
+## Captain's intent
+Exercise the project task bootstrap for $id.
+
+## Firstmate spec
+Stop before any worker launch when the declaration fails.
+EOF
+}
+
 make_spawn_fakebin() {
   local dir=$1 fakebin
   fakebin=$(fm_fakebin "$dir")
@@ -45,6 +60,11 @@ set -u
 exit 0
 SH
   chmod +x "$fakebin/treehouse"
+  cat > "$fakebin/sleep" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  chmod +x "$fakebin/sleep"
   printf '%s\n' "$fakebin"
 }
 
@@ -59,11 +79,13 @@ test_spawn_stops_before_worker_when_declared_bootstrap_fails() {
   fakebin=$(make_spawn_fakebin "$case_dir/fake")
   mkdir -p "$home/data/$id" "$home/projects" "$home/state" "$home/config"
   printf 'codex\n' > "$home/config/crew-harness"
-  printf 'task brief\n' > "$home/data/$id/brief.md"
+  write_spawn_brief "$home" "$id"
   touch "$home/state/.last-watcher-beat"
-  fm_git_worktree "$project" "$worktree" bootstrap-spawn
-  mkdir -p "$worktree/.firstmate"
-  cat > "$worktree/.firstmate/bootstrap" <<'SH'
+  # fm-spawn refreshes a fresh task worktree onto origin's default branch before
+  # the bootstrap runs, so the declaration must already be committed there.
+  fm_git_init_commit "$project"
+  mkdir -p "$project/.firstmate"
+  cat > "$project/.firstmate/bootstrap" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
   fingerprint) printf 'fixture-v1\n' ;;
@@ -71,8 +93,12 @@ case "${1:-}" in
   *) exit 2 ;;
 esac
 SH
-  chmod +x "$worktree/.firstmate/bootstrap"
-  track_declaration "$worktree"
+  chmod +x "$project/.firstmate/bootstrap"
+  git -C "$project" add .firstmate/bootstrap
+  git -C "$project" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' \
+    commit -qm 'declare task bootstrap'
+  fm_git_add_origin "$project" "$project.origin.git"
+  git -C "$project" worktree add --quiet -b bootstrap-spawn "$worktree"
 
   set +e
   out=$(FM_ROOT_OVERRIDE='' FM_HOME="$home" \
@@ -401,7 +427,7 @@ test_spawn_never_returns_an_unvalidated_worktree() {
   fakebin=$(make_spawn_fakebin "$case_dir/fake")
   mkdir -p "$home/data/$id" "$home/projects" "$home/state" "$home/config" "$stray"
   printf 'codex\n' > "$home/config/crew-harness"
-  printf 'task brief\n' > "$home/data/$id/brief.md"
+  write_spawn_brief "$home" "$id"
   touch "$home/state/.last-watcher-beat"
   fm_git_init_commit "$project"
 
@@ -416,7 +442,7 @@ test_spawn_never_returns_an_unvalidated_worktree() {
   set -e
 
   [ "$status" -ne 0 ] || fail "spawn launched from a pane that never entered a worktree"
-  assert_contains "$out" "did not yield an isolated worktree" \
+  assert_contains "$out" "did not enter an isolated worktree" \
     "spawn did not refuse the unvalidated pane path"
   assert_grep "kill-window" "$calls" \
     "the refused spawn left its tmux window behind"

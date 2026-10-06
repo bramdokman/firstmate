@@ -22,7 +22,7 @@
 #   (g) one issue lookup fails         -> warn on stderr, still report the rest
 #   (h) closingIssuesReferences source -> a commit-message-only ref is caught
 #   (i) brief source                   -> a reference only in the brief is caught
-#   (j) GitLab merge request           -> silent (out of scope)
+#   (j) GitLab merge request           -> silent (out of scope, no gh call)
 #   (k) word boundary                  -> "prefixes #5" is NOT a closing ref
 #   (l) cross-repo reference           -> ignored (not resolved against this repo)
 #   (m) owner/repo#N and full URL form -> same-repo forms are recognized
@@ -30,6 +30,11 @@
 #   (o) reference to a PR number       -> silent (issues and PRs share numbers)
 #   (p) colon keyword form             -> "Fixes: #N" is a closing ref;
 #                                         prose like "prefixes: #N" still is not
+#   (q) brief fallback                 -> ignored when the PR body has a ref
+#   (r) Gerrit change                  -> silent (out of scope, no warning, no gh call)
+#   (s) supervision engine cleanup     -> the engine's prompt (bin/fm-branch-prompt.sh)
+#                                         sends an OPEN discrepancy to the captain and
+#                                         keeps a failed lookup routine
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -75,6 +80,7 @@ run_closure() {
 #   fail        any content -> gh always exits 1 (lookup failure)
 #   issue_<n>   state for issue #<n> (OPEN/CLOSED, or pull-request when #<n>
 #               is actually a PR); absent -> lookup fails
+# Every invocation is appended to gh.calls, so a test can prove no lookup ran.
 gh_data_mock() {
   local case_dir=$1
   mkdir -p "$case_dir/data"
@@ -82,6 +88,7 @@ gh_data_mock() {
 #!/usr/bin/env bash
 set -u
 D="${FM_CLOSURE_DATA:?}"
+printf '%s\n' "$*" >> "$D/gh.calls"
 [ -f "$D/fail" ] && { echo "error: gh unavailable" >&2; exit 1; }
 state=MERGED
 [ -f "$D/pr_state" ] && state=$(cat "$D/pr_state")
@@ -238,6 +245,21 @@ test_brief_source_is_used() {
   pass "the task brief supplies candidates the PR body lacks"
 }
 
+test_brief_is_ignored_when_body_has_reference() {
+  local case_dir
+  case_dir=$(make_case brief-fallback)
+  gh_data_mock "$case_dir"
+  printf 'Fixes #7.\n' > "$case_dir/data/pr_body"
+  printf 'Old context: fixes #12.\n' > "$case_dir/brief.md"
+  printf 'OPEN\n' > "$case_dir/data/issue_7"
+  printf 'OPEN\n' > "$case_dir/data/issue_12"
+  run_closure "$case_dir" "$PR_URL" --brief "$case_dir/brief.md"
+  expect_code 0 "$RC" "brief-fallback: exit must be 0"
+  assert_contains "$OUT" "#7" "brief-fallback: the PR body's issue must be reported"
+  assert_not_contains "$OUT" "#12" "brief-fallback: the brief must not supplement a PR body reference"
+  pass "the task brief is only a fallback when the PR body has no reference"
+}
+
 test_brief_without_reference_is_silent() {
   local case_dir
   case_dir=$(make_case brief-silent)
@@ -257,7 +279,20 @@ test_gitlab_is_silent() {
   run_closure "$case_dir" 'https://gitlab.example.com/group/proj/-/merge_requests/5'
   expect_code 0 "$RC" "gitlab: exit must be 0"
   [ -z "$OUT" ] || fail "gitlab: merge-request closure is out of scope, expected silence, got: $OUT"
+  [ ! -e "$case_dir/data/gh.calls" ] || fail "gitlab: a merge request must never be looked up with gh, got: $(cat "$case_dir/data/gh.calls")"
   pass "a GitLab merge request is out of scope and stays silent"
+}
+
+test_gerrit_is_silent() {
+  local case_dir
+  case_dir=$(make_case gerrit)
+  gh_data_mock "$case_dir"
+  run_closure "$case_dir" 'https://gerrit.example/c/group/proj/+/4201'
+  expect_code 0 "$RC" "gerrit: exit must be 0"
+  [ -z "$OUT" ] || fail "gerrit: change closure is out of scope, expected silence, got: $OUT"
+  [ -z "$ERR" ] || fail "gerrit: a valid change URL must not be reported as invalid, got: $ERR"
+  [ ! -e "$case_dir/data/gh.calls" ] || fail "gerrit: a change must never be looked up with gh, got: $(cat "$case_dir/data/gh.calls")"
+  pass "a Gerrit change is out of scope and stays silent"
 }
 
 test_word_boundary_rejects_prose() {
@@ -348,6 +383,34 @@ test_exit_zero_on_discrepancy() {
   pass "a discrepancy report is never an error exit (never blocks teardown)"
 }
 
+test_branch_engine_relays_issue_closure() {
+  # The supervision host and the Pi supervision branch run landed-PR cleanup
+  # from the generated branch prompt alone, without the ship-landing skill
+  # that tells main to surface an issue-closure discrepancy. The prompt must
+  # route the real discrepancy to the captain and keep a failed lookup routine,
+  # keyed on the wording this script actually prints for each.
+  local case_dir prompt
+  case_dir=$(make_case branch-relay-open)
+  gh_data_mock "$case_dir"
+  printf 'This fixes #7.\n' > "$case_dir/data/pr_body"
+  printf 'OPEN\n' > "$case_dir/data/issue_7"
+  run_closure "$case_dir" "$PR_URL"
+  assert_contains "$OUT" "GitHub left it OPEN" "branch-relay: the discrepancy line no longer says GitHub left the issue OPEN"
+  case_dir=$(make_case branch-relay-lookup)
+  gh_data_mock "$case_dir"
+  : > "$case_dir/data/fail"
+  printf 'This fixes #7.\n' > "$case_dir/data/pr_body"
+  run_closure "$case_dir" "$PR_URL"
+  assert_contains "$ERR" "could not verify issue closure" "branch-relay: the lookup-failure line changed its wording"
+
+  prompt=$("$ROOT/bin/fm-branch-prompt.sh") || fail "branch-relay: branch prompt generator failed"
+  case "$prompt" in
+    *"\`bin/fm-teardown.sh <task>\`"*"\`issue-closure:\` line saying GitHub left an issue OPEN, report that event as verdict captain and name the issue"*"\`issue-closure:\` line saying a lookup could not verify closure stays a routine note"*) ;;
+    *) fail "branch-relay: the supervision engine's prompt does not route issue-closure lines (OPEN -> captain, failed lookup -> routine)" ;;
+  esac
+  pass "the supervision engine escalates an open-issue discrepancy to the captain and keeps a failed lookup routine"
+}
+
 test_open_issue_is_reported
 test_closed_issue_is_silent
 test_no_reference_is_silent
@@ -357,8 +420,10 @@ test_multiple_issues_report_only_open
 test_one_issue_lookup_failure_continues
 test_closing_references_source_is_used
 test_brief_source_is_used
+test_brief_is_ignored_when_body_has_reference
 test_brief_without_reference_is_silent
 test_gitlab_is_silent
+test_gerrit_is_silent
 test_word_boundary_rejects_prose
 test_cross_repo_reference_ignored
 test_ownerrepo_and_url_forms_recognized
@@ -366,3 +431,4 @@ test_colon_keyword_form_recognized
 test_pr_number_reference_is_silent
 test_malformed_url_exits_zero
 test_exit_zero_on_discrepancy
+test_branch_engine_relays_issue_closure
