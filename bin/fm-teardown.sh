@@ -52,8 +52,9 @@
 # already present in the up-to-date default branch. This recognizes the common
 # squash-merge-then-delete-branch flow, where the branch's own commits live nowhere
 # on a remote yet the change is fully in main. A task whose meta records
-# base_branch= (bin/fm-spawn.sh) runs that content check against origin's copy of
-# its base branch instead of the default branch.
+# base_branch= (bin/fm-spawn.sh) runs that content check, and fetches a PR merge
+# commit that is not available locally, against origin's copy of its base branch
+# instead of the default branch; "the default branch" below means that target.
 # A worktree may hold NO remote-tracking ref for its own branch (a fresh clone, a
 # pruned ref, a worktree that never fetched), and then the local ahead-of-remote
 # comparison has nothing to compare against and reads every commit as unpushed.
