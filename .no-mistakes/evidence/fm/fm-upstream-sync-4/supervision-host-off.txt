@@ -1,0 +1,12 @@
+### Claude primary, no opt-out (default: host ON)
+8:- Supervision host: on; it takes away-posture wakes and, where the dialog mirror is verified, eligible attended wakes itself, and hands the rest to you (protocol at the end of this block).
+35:The watcher itself remains `bin/fm-watch.sh`, and `bin/fm-watch-arm.sh` remains the verified arm wrapper that the Stop hook foregrounds on a home that opted out of the [supervision host](../supervision-host.md) (`config/supervision-host-off`).
+39:Supervision host: on for this home (`config/supervision-host-off` turns it off; [`supervision-host.md`](../supervision-host.md) owns the design).
+40:The Stop hook runs the supervision host in the arm's place, and everything above still holds with these additions:
+41:1. Attended (no away record, including a quiet-mode record; see [Postures](../supervision-host.md#postures)): a headless supervision session takes the wakes the supervision branch may take and never wakes you for a routine outcome, so fewer wakes reach you; check wakes, decision wakes, and whatever it cannot take still reach you exactly as above.
+### touch config/supervision-host-off
+1
+### inherit list contains supervision-host-off:
+supervision-host-off
+### with supervision-host-off (Claude primary): matching lines
+only the generic arm-wrapper sentence remains; "Supervision host: on" state line and host protocol are absent

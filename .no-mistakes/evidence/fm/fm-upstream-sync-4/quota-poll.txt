@@ -1,0 +1,36 @@
+$ fm-procevent-quota.sh poll --provider codex --interval 1 --timeout 30   # real quota-axi, codex exhausted_now
+quota: quota-codex
+status: exhausted
+detail: {"provider":"codex","best":{"scope":"all_models","status":"known","effectivePercentRemaining":0,"boundedBy":["weekly"],"limitingWindowIds":["weekly"],"pace":{"status":"ahead","aheadWindowIds":["weekly"],"worstReservePercentPoints":-50.6643,"worstReserveWindowId":"weekly"},"runway":{"status":"exhausted_now","usableRunwaySeconds":0,"limitingWindowId":"weekly","projectedExhaustedAt":"2026-10-06T15:24:33.298Z"},"selection":{"status":"known","spendPriority":-2.0269}}}
+condition_polls: 1
+$ fm-procevent-quota.sh classify
+exhausted
+
+$ fm-procevent-quota.sh poll --provider claude --threshold 70 --interval 1 --timeout 30   # real quota-axi, claude 62% < 70
+quota: quota-claude
+status: low
+detail: {"provider":"claude","best":{"scope":"all_models","status":"known","effectivePercentRemaining":62,"boundedBy":["five_hour","seven_day"],"limitingWindowIds":["seven_day"],"pace":{"status":"behind","worstReservePercentPoints":30.6965,"worstReserveWindowId":"seven_day"},"runway":{"status":"through_reset","projectionConfidence":"established"},"selection":{"status":"known","spendPriority":1.4517}}}
+condition_polls: 1
+low
+
+$ quota-axi wrapper failing its first 2 --json reads (transient), then real data; poll --provider codex
+quota: quota-codex
+status: exhausted
+detail: {"provider":"codex","best":{"scope":"all_models","status":"known","effectivePercentRemaining":0,"boundedBy":["weekly"],"limitingWindowIds":["weekly"],"pace":{"status":"ahead","aheadWindowIds":["weekly"],"worstReservePercentPoints":-50.6628,"worstReserveWindowId":"weekly"},"runway":{"status":"exhausted_now","usableRunwaySeconds":0,"limitingWindowId":"weekly","projectedExhaustedAt":"2026-10-06T15:24:42.253Z"},"selection":{"status":"known","spendPriority":-2.0269}}}
+condition_polls: 3
+
+$ quota-axi wrapper failing every --json read; poll --provider codex
+quota: quota-codex
+status: error
+detail: 3 consecutive read failures; last quota-axi read failed
+condition_polls: 3
+
+$ quota-axi missing (PATH without it)
+error: --threshold needs a percent 0-100
+(setup artifact: this PATH also dropped jq, which lives in ~/.local/bin; re-driven below with jq kept)
+
+$ quota-axi missing from PATH (jq kept); poll --provider codex
+quota: quota-codex
+status: error
+detail: quota-axi is missing
+condition_polls: 1

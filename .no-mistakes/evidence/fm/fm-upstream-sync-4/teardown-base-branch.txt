@@ -1,0 +1,5 @@
+### pre-fix bin/fm-teardown.sh (7494dd3, merge commit before review fix)
+not ok - squash-merge-commit-base: teardown should succeed when the base branch's merge commit holds the work: expected exit 0, got 1
+
+### fixed bin/fm-teardown.sh (8714ffc)
+ok - squash-merged work is recognized from a merge commit on the recorded base branch
