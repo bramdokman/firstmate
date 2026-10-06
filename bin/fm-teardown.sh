@@ -51,7 +51,9 @@
 # GitHub reports a PR that contains the current local work, or its content is
 # already present in the up-to-date default branch. This recognizes the common
 # squash-merge-then-delete-branch flow, where the branch's own commits live nowhere
-# on a remote yet the change is fully in main.
+# on a remote yet the change is fully in main. A task whose meta records
+# base_branch= (bin/fm-spawn.sh) runs that content check against origin's copy of
+# its base branch instead of the default branch.
 # A worktree may hold NO remote-tracking ref for its own branch (a fresh clone, a
 # pruned ref, a worktree that never fetched), and then the local ahead-of-remote
 # comparison has nothing to compare against and reads every commit as unpushed.
@@ -91,7 +93,8 @@
 # Each remote branch lookup is bounded by FM_LS_REMOTE_TIMEOUT_SECS (default 30)
 # when a timeout command is available, and never prompts for credentials; a lookup
 # that times out is an unestablished fact like any other failure.
-# Uncommitted changes are never landed.
+# Uncommitted changes are never landed; dirty refusals distinguish untracked-only
+# leftovers from tracked edits and list at most ten non-exempt untracked paths.
 # local-only projects additionally accept work merged into the local default
 # branch (firstmate performs that merge after configured approval) as a fallback
 # for the common case where there is no remote at all.
@@ -317,6 +320,12 @@
 #     root still exists, so the account's healthy LaunchAgent worker and every
 #     live remote secondmate worker are out of scope. Best effort: a sweep
 #     failure never blocks this teardown.
+# After Fix 1 and Fix 2, when config/pipeline-spend opts this home in, a ship
+# task whose local copy this teardown owns has its no-mistakes pipeline spend
+# recorded by bin/fm-pipeline-spend.sh, which owns the attribution and the
+# ledger. It runs before the task branch it attributes runs by is deleted and
+# before state/<id>.meta is removed, and is best effort: a failure warns and
+# never blocks cleanup.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1183,6 +1192,7 @@ elif [ "$TREEHOUSE_SLOT_LOCK_REQUIRED" = 1 ]; then
 fi
 MODE=$(grep '^mode=' "$META" | cut -d= -f2- || true)
 [ -n "$MODE" ] || MODE=no-mistakes
+BASE_BRANCH=$(grep '^base_branch=' "$META" | cut -d= -f2- || true)
 
 # A record accepted as a legacy incarnation (no spawn_gen, and either
 # --legacy-record given or the record is windowless) may be torn down only
@@ -1869,18 +1879,37 @@ resolve_default_branch_ref() {
   fi
 }
 
-# Is the branch's content already present in the up-to-date default branch? Fetches
-# first, then 3-way merges the default branch with HEAD: when HEAD introduces nothing
-# the default branch does not already contain (e.g. its change landed via squash) the
-# merged tree equals the default branch's tree. This isolates branch-only changes, so
-# unrelated commits the default branch gained past the merge-base do not count as
+# Is the branch's content already present in the up-to-date default branch, or -
+# for a task whose meta records base_branch= (bin/fm-spawn.sh) - in the up-to-date
+# copy of that base branch? Fetches
+# first, then 3-way merges the target branch with HEAD: when HEAD introduces nothing
+# the target branch does not already contain (e.g. its change landed via squash) the
+# merged tree equals the target branch's tree. This isolates branch-only changes, so
+# unrelated commits the target branch gained past the merge-base do not count as
 # "added". A merge that conflicts proves nothing either way, so it falls through to
 # the file-by-file comparison rather than being read as unlanded work. Returns
 # non-zero when still inconclusive, so the caller refuses rather than guesses.
 content_in_default() {
-  local ref default_tree merged_tree
-  resolve_default_branch_ref || return 1
-  ref=$TEARDOWN_DEFAULT_REF
+  local name=${BASE_BRANCH:-} ref default_tree merged_tree
+  if [ -n "$name" ]; then
+    # A task's named base branch replaces the default branch as this check's
+    # target: the pull request targets it, so the content comparison does too.
+    if git -C "$WT" remote get-url origin >/dev/null 2>&1; then
+      git -C "$WT" fetch --quiet origin "+refs/heads/$name:refs/remotes/origin/$name" >/dev/null 2>&1 || {
+        landed_note "origin/$name could not be refreshed, so whether the work is already on the base branch is unknown"
+        return 1
+      }
+      ref="refs/remotes/origin/$name"
+    elif git -C "$WT" rev-parse --quiet --verify "refs/heads/$name" >/dev/null 2>&1; then
+      ref="refs/heads/$name"
+    else
+      landed_note "there is no origin remote and no local $name branch to compare the work against"
+      return 1
+    fi
+  else
+    resolve_default_branch_ref || return 1
+    ref=$TEARDOWN_DEFAULT_REF
+  fi
   default_tree=$(git -C "$WT" rev-parse --quiet --verify "$ref^{tree}" 2>/dev/null) || {
     landed_note "the default branch ref $ref could not be read"
     return 1
@@ -2172,6 +2201,23 @@ teardown_treehouse_return() {
   return 1
 }
 
+report_worktree_dirt() {
+  # Use the same porcelain snapshot and exemptions as the refusal predicate.
+  printf '%s\n' "$1" | awk '
+    /^\?\? / { if (++untracked <= 10) paths = paths "  " substr($0, 4) "\n"; next }
+    NF { tracked = 1 }
+    END {
+      if (tracked) print "uncommitted changes present (includes tracked edits)"
+      else print "uncommitted changes present (untracked-only leftovers)"
+      if (untracked) {
+        print "untracked paths (up to 10):"
+        printf "%s", paths
+        if (untracked > 10) print "  ... additional untracked paths omitted"
+      }
+    }
+  ' >&2
+}
+
 validate_worktree_teardown_safety() {
   local dirty_raw dirty unpushed_raw unpushed DEFAULT unmerged_raw unmerged branch
   [ -d "$WT" ] || return 0
@@ -2188,7 +2234,7 @@ validate_worktree_teardown_safety() {
     echo "Restore the git index state, or get the captain's explicit OK to discard, then --force." >&2
     return 1
   fi
-  dirty=$(printf '%s\n' "$dirty_raw" | grep -vE '^\?\? (\.claude/|\.fm-(grok|kimi)-turnend$)' | head -1 || true)
+  dirty=$(printf '%s\n' "$dirty_raw" | grep -vE '^\?\? (\.claude/|\.fm-(grok|kimi)-turnend$)' || true)
 
   if ! unpushed_raw=$(git -C "$WT" log --oneline HEAD --not --remotes -- 2>/dev/null); then
     if worktree_safety_blocked_by_lock "commits not on a remote"; then
@@ -2228,7 +2274,7 @@ validate_worktree_teardown_safety() {
     unmerged=$(printf '%s\n' "$unmerged_raw" | head -5)
     if [ -n "$dirty" ] || [ -n "$unmerged" ]; then
       echo "REFUSED: local-only worktree $WT has work not yet merged into $DEFAULT and not on any remote." >&2
-      [ -n "$dirty" ] && echo "uncommitted changes present" >&2
+      [ -n "$dirty" ] && report_worktree_dirt "$dirty"
       [ -n "$unmerged" ] && printf 'commits not yet on %s:\n%s\n' "$DEFAULT" "$unmerged" >&2
       landed_evidence_print
       echo "Merge the branch into local $DEFAULT first (bin/fm-merge-local.sh after the captain approves), or push to a fork/remote, or get the captain's explicit OK to discard, then --force." >&2
@@ -2236,7 +2282,7 @@ validate_worktree_teardown_safety() {
     fi
   elif [ -n "$dirty" ]; then
     echo "REFUSED: worktree $WT has uncommitted changes." >&2
-    echo "uncommitted changes present" >&2
+    report_worktree_dirt "$dirty"
     echo "Commit them (or get the captain's explicit OK to discard, then --force)." >&2
     return 1
   elif [ -n "$unpushed" ]; then
@@ -3888,6 +3934,11 @@ if [ "$KIND" != secondmate ] && teardown_owns_worktree; then
   reap_task_worktree_processes worktree "$WT" "$TASK_TMP"
 elif [ "$KIND" != secondmate ]; then
   reap_task_worktree_processes tasktmp "$TASK_TMP"
+fi
+if [ "$KIND" = ship ] && teardown_owns_worktree && [ -e "$CONFIG/pipeline-spend" ]; then
+  FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
+    "$SCRIPT_DIR/fm-pipeline-spend.sh" record "$ID" >/dev/null \
+    || echo "warning: could not record $ID's no-mistakes pipeline spend; cleanup continues" >&2
 fi
 
 # Fix 3 (see script header): sweep remote job workers abandoned by an already
