@@ -1836,9 +1836,9 @@ merged_commit_contains_branch_change() {
     return 1
   fi
   if ! git -C "$WT" cat-file -e "$merge_sha^{commit}" 2>/dev/null; then
-    # The merge commit sits on the default branch; refreshing that ref is the
+    # The merge commit sits on the target branch; refreshing that ref is the
     # same read the content fallback performs, and it happens at most once.
-    resolve_default_branch_ref || return 1
+    resolve_target_branch_ref || return 1
     git -C "$WT" cat-file -e "$merge_sha^{commit}" 2>/dev/null || {
       landed_note "the merge commit ${merge_sha:0:12} of pull request $target is not available locally, so its merged content could not be compared"
       return 1
@@ -1853,26 +1853,35 @@ merged_commit_contains_branch_change() {
     "the merge commit ${merge_sha:0:12} of pull request $target"
 }
 
-# Resolves the ref naming the up-to-date default branch into TEARDOWN_DEFAULT_REF,
-# refreshing it from origin once per run. Returns non-zero, with the reason
-# recorded, when the default branch cannot be established - a refresh that cannot
-# complete is an unknown state, never a silent pass.
-TEARDOWN_DEFAULT_REF=
-resolve_default_branch_ref() {
+# Resolves the ref naming the up-to-date target branch into TEARDOWN_TARGET_REF,
+# refreshing it from origin once per run. The target is the task's named base
+# branch when its meta records base_branch= (bin/fm-spawn.sh), since the pull
+# request targets it; otherwise the project's default branch. Returns non-zero,
+# with the reason recorded, when the target branch cannot be established - a
+# refresh that cannot complete is an unknown state, never a silent pass.
+TEARDOWN_TARGET_REF=
+TEARDOWN_TARGET_LABEL=
+resolve_target_branch_ref() {
   local name
-  [ -z "$TEARDOWN_DEFAULT_REF" ] || return 0
-  name=$(default_branch) || {
-    landed_note "the project's default branch could not be determined (expected origin/HEAD, main, or master), so the content check could not run"
-    return 1
-  }
-  if git -C "$WT" remote get-url origin >/dev/null 2>&1; then
-    git -C "$WT" fetch --quiet origin "+refs/heads/$name:refs/remotes/origin/$name" >/dev/null 2>&1 || {
-      landed_note "origin/$name could not be refreshed, so whether the work is already on the default branch is unknown"
+  [ -z "$TEARDOWN_TARGET_REF" ] || return 0
+  if [ -n "${BASE_BRANCH:-}" ]; then
+    name=$BASE_BRANCH
+    TEARDOWN_TARGET_LABEL="the base branch"
+  else
+    name=$(default_branch) || {
+      landed_note "the project's default branch could not be determined (expected origin/HEAD, main, or master), so the content check could not run"
       return 1
     }
-    TEARDOWN_DEFAULT_REF="refs/remotes/origin/$name"
+    TEARDOWN_TARGET_LABEL="the default branch"
+  fi
+  if git -C "$WT" remote get-url origin >/dev/null 2>&1; then
+    git -C "$WT" fetch --quiet origin "+refs/heads/$name:refs/remotes/origin/$name" >/dev/null 2>&1 || {
+      landed_note "origin/$name could not be refreshed, so whether the work is already on $TEARDOWN_TARGET_LABEL is unknown"
+      return 1
+    }
+    TEARDOWN_TARGET_REF="refs/remotes/origin/$name"
   elif git -C "$WT" rev-parse --quiet --verify "refs/heads/$name" >/dev/null 2>&1; then
-    TEARDOWN_DEFAULT_REF="refs/heads/$name"
+    TEARDOWN_TARGET_REF="refs/heads/$name"
   else
     landed_note "there is no origin remote and no local $name branch to compare the work against"
     return 1
@@ -1890,28 +1899,11 @@ resolve_default_branch_ref() {
 # the file-by-file comparison rather than being read as unlanded work. Returns
 # non-zero when still inconclusive, so the caller refuses rather than guesses.
 content_in_default() {
-  local name=${BASE_BRANCH:-} ref default_tree merged_tree
-  if [ -n "$name" ]; then
-    # A task's named base branch replaces the default branch as this check's
-    # target: the pull request targets it, so the content comparison does too.
-    if git -C "$WT" remote get-url origin >/dev/null 2>&1; then
-      git -C "$WT" fetch --quiet origin "+refs/heads/$name:refs/remotes/origin/$name" >/dev/null 2>&1 || {
-        landed_note "origin/$name could not be refreshed, so whether the work is already on the base branch is unknown"
-        return 1
-      }
-      ref="refs/remotes/origin/$name"
-    elif git -C "$WT" rev-parse --quiet --verify "refs/heads/$name" >/dev/null 2>&1; then
-      ref="refs/heads/$name"
-    else
-      landed_note "there is no origin remote and no local $name branch to compare the work against"
-      return 1
-    fi
-  else
-    resolve_default_branch_ref || return 1
-    ref=$TEARDOWN_DEFAULT_REF
-  fi
+  local ref default_tree merged_tree
+  resolve_target_branch_ref || return 1
+  ref=$TEARDOWN_TARGET_REF
   default_tree=$(git -C "$WT" rev-parse --quiet --verify "$ref^{tree}" 2>/dev/null) || {
-    landed_note "the default branch ref $ref could not be read"
+    landed_note "$TEARDOWN_TARGET_LABEL ref $ref could not be read"
     return 1
   }
   if merged_tree=$(git -C "$WT" merge-tree --write-tree "$ref" HEAD 2>/dev/null); then
@@ -1923,7 +1915,7 @@ content_in_default() {
   # The default branch's own motion is not this task's work, so only the files
   # this branch changed are at stake - the same question the whole-tree merge
   # above answers when it can run.
-  branch_paths_match_ref "$ref" "" "the default branch $ref"
+  branch_paths_match_ref "$ref" "" "$TEARDOWN_TARGET_LABEL $ref"
 }
 
 # Has the worktree's committed work actually LANDED, though its commits are not

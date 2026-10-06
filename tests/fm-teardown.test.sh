@@ -4582,6 +4582,41 @@ test_squash_merged_pr_allows_via_merge_commit() {
   pass "squash-merged work is recognized from the PR's merge commit when no local hash survives"
 }
 
+# A task recording base_branch= has its PR squash-merged into that base branch,
+# so the merge commit exists only there. The base branch then moves on in the
+# same file, so the content comparison against it conflicts and settles nothing.
+# Fetching the merge commit must refresh the base branch, not the default branch.
+test_squash_merged_pr_into_base_branch_allows_via_merge_commit() {
+  local case_dir rc merge_sha tmp
+  case_dir=$(make_case squash-merge-commit-base)
+  write_meta "$case_dir" no-mistakes ship
+  printf 'base_branch=feature/hub\n' >> "$case_dir/state/task-x1.meta"
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  append_pr_meta_url "$case_dir"
+  tmp="$case_dir/_hub"
+  git clone -q "$case_dir/origin.git" "$tmp"
+  git -C "$tmp" checkout -q -b feature/hub
+  printf 'hello\n' > "$tmp/feature.txt"
+  git -C "$tmp" add feature.txt
+  git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -m "squash feature.txt"
+  merge_sha=$(git -C "$tmp" rev-parse HEAD)
+  printf 'hello, revised\n' > "$tmp/feature.txt"
+  git -C "$tmp" -c user.email=t@t -c user.name=t commit -q -am "revise feature.txt"
+  git -C "$tmp" push -q origin HEAD:refs/heads/feature/hub
+  rm -rf "$tmp"
+  add_gh_pr_merged_with_merge_commit "$case_dir" \
+    0000000000000000000000000000000000000000 "$merge_sha"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "squash-merge-commit-base: teardown should succeed when the base branch's merge commit holds the work"
+  ! grep -q REFUSED "$case_dir/stderr" || fail "squash-merge-commit-base: teardown printed a REFUSED line"
+  pass "squash-merged work is recognized from a merge commit on the recorded base branch"
+}
+
 # An unpushed local commit that REVERTS work the merged PR still carries changes
 # no file relative to the branch's own base, so a comparison that looked only at
 # the branch's changed files would call it landed and discard the revert. The
@@ -4966,6 +5001,7 @@ test_pr_check_does_not_refresh_stale_pr_head
 test_pr_check_records_remote_head_when_local_lags
 test_content_in_default_fallback_allows
 test_content_fallback_uses_recorded_base_branch
+test_squash_merged_pr_into_base_branch_allows_via_merge_commit
 test_content_fallback_refreshes_stale_origin_ref
 test_dirty_worktree_refuses
 test_untracked_only_refusal_diagnostic
