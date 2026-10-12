@@ -1,0 +1,25 @@
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/6fd900e7a84b/01M4R1FPWJT44YP97CZSE9RA21/.l/pool/.treehouse/project-dee7d2/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/6fd900e7a84b/01M4R1FPWJT44YP97CZSE9RA21/.l/pool/.treehouse/project-dee7d2/1/project' to release it.
+Attempt unpushed work teardown
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4R1FPWJT44YP97CZSE9RA21/.l
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: local-only worktree /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4R1FPWJT44YP97CZSE9RA21/.l/pool/.treehouse/project-dee7d2/1/project has work not yet merged into main and not on any remote.
+commits not yet on main:
+222e32e work
+could not confirm the work landed:
+  - origin has no branch named fm/probe
+Merge the branch into local main first (bin/fm-merge-local.sh after the captain approves), or push to a fork/remote, or get the captain's explicit OK to discard, then --force.
+exit=1 worktree_retained=yes
+Attempt pushed work teardown
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4R1FPWJT44YP97CZSE9RA21/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+🌳 Worktree returned to pool.
+teardown probe complete (window primary:fm-probe, worktree /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4R1FPWJT44YP97CZSE9RA21/.l/pool/.treehouse/project-dee7d2/1/project)
+Backlog: probe just finished (config/backlog-backend selects manual editing). Update /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4R1FPWJT44YP97CZSE9RA21/.l/data/backlog.md - move probe to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+exit=0 worktree_present=yes

@@ -1,0 +1,8 @@
+ok - fm-fork-delta.sh: a delta that matches its manifest passes
+ok - fm-fork-delta.sh: a changed path missing from the manifest fails
+ok - fm-fork-delta.sh: a hook over its line budget fails
+ok - fm-fork-delta.sh: a manifest row outside the delta fails
+ok - fm-fork-delta.sh: a symbol upstream no longer defines fails
+ok - fm-fork-delta.sh: symbol mentions do not count as definitions
+ok - fm-fork-delta.sh: upstream adding a fork-owned path fails
+ok - fm-fork-delta.sh: a malformed manifest or missing upstream ref stops with exit 2

@@ -1,0 +1,6 @@
+ok - fm-brief.sh: PR-based modes require a real PR and checks that actually ran
+ok - fm-brief.sh: no-mistakes handoff sits outside the delivery evidence gate
+ok - fm-brief.sh: local-only keeps its no-PR definition of done
+ok - fm-brief.sh: forge=gerrit blocks carry no PR evidence gate
+ok - fm-brief.sh: isolation, Herdr and reporting safety clauses survive in every ship mode
+ok - fm-fork-delivery-evidence.sh: names the forge's own check read and refuses forges without pull requests

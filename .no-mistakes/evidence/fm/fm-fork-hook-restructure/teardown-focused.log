@@ -1,0 +1,11 @@
+ok - branch pushed to a remote the worktree has no tracking ref for is torn down (the fix)
+ok - a remote branch that lags the local work still refuses, naming what the remote holds
+ok - an unreachable remote refuses and names the lookup that could not be completed
+ok - squash-merged work is recognized from the PR's merge commit when no local hash survives
+ok - an unpushed local revert of merged work is still refused (safety preserved)
+ok - work absent from the PR's merge commit is still refused (safety preserved)
+ok - an unpushed deletion hidden by rename detection is still refused (safety preserved)
+ok - squash-landed content is recognized file-by-file when a whole-tree merge cannot run
+ok - a whole-tree merge that cannot run never allows discarding unlanded work
+ok - teardown surfaces an issue a merged PR left open and never blocks on the check
+ok - teardown is not blocked when the issue-closure lookup itself fails
