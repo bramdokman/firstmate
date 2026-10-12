@@ -188,14 +188,25 @@ stop_home_processes() {  # <home>
     kill -TERM "$pid" 2>/dev/null || true
   done < <(cat "$home/orphan-pid" 2>/dev/null)
 }
-suite_cleanup() {
+stop_registered_homes() {
   local home
   while IFS= read -r home; do
     [ -n "$home" ] && stop_home_processes "$home"
   done < <(cat "$HOMES_FILE" 2>/dev/null)
+  : > "$HOMES_FILE"
+}
+suite_cleanup() {
+  stop_registered_homes
   fm_test_cleanup
 }
 trap suite_cleanup EXIT
+# Every case ends by passing. Its sessions, hosts, and watchers poll until they
+# are stopped, so each case stops them as it passes; left for the suite's exit,
+# they load every later case.
+pass() {
+  stop_registered_homes
+  printf 'ok - %s\n' "$1"
+}
 
 make_home() {  # <name> <attended|away|quiet> [config line]
   local home="$TMP_ROOT/$1"
