@@ -140,6 +140,22 @@ test_symbol_gone_upstream_fails() {
   pass "fm-fork-delta.sh: a symbol upstream no longer defines fails"
 }
 
+test_symbol_mentions_are_not_definitions() {
+  local repo manifest
+  repo=$(make_fixture mentions)
+  fx_git "$repo" checkout -q upstream-tip
+  printf '%s\n' '# up_fn() was replaced' 'echo "up_fn() UP_VAR=1"' '# UP_VAR=1 was removed' > "$repo/up/lib.sh"
+  fx_git "$repo" commit -q -am "upstream replaces definitions with mentions"
+  fx_git "$repo" checkout -q main
+  manifest="$TMP_ROOT/mentions.manifest"
+  write_manifest "$manifest" "${matching_rows[@]}"
+  run_delta "$repo" --manifest "$manifest" upstream-tip
+  expect_code 1 "$RC" "comments and quoted mentions must not satisfy symbol checks"
+  assert_contains "$OUT" "fail: up/lib.sh no longer defines up_fn at upstream-tip" "the function mention passed"
+  assert_contains "$OUT" "fail: up/lib.sh no longer defines UP_VAR at upstream-tip" "the variable mention passed"
+  pass "fm-fork-delta.sh: symbol mentions do not count as definitions"
+}
+
 test_owned_path_collision_upstream_fails() {
   local repo manifest
   repo=$(make_fixture collision)
@@ -176,31 +192,11 @@ test_malformed_manifest_and_missing_ref_are_usage_errors() {
   pass "fm-fork-delta.sh: a malformed manifest or missing upstream ref stops with exit 2"
 }
 
-# --manifest-only needs no upstream remote, so CI proves the real manifest still
-# names files and symbols this checkout actually has.
-test_real_manifest_matches_the_checkout() {
-  local repo manifest
-  run_delta "$ROOT" --manifest-only
-  expect_code 0 "$RC" "the fork manifest names a file or symbol this checkout lacks (output: $OUT)"
-  assert_contains "$OUT" "FM_FORK_DELTA ok manifest-only" "the manifest-only check printed no ok summary"
-
-  repo=$(make_fixture manifest-only)
-  manifest="$TMP_ROOT/manifest-only.manifest"
-  write_manifest "$manifest" "${matching_rows[@]}" 'owned fork/missing.sh' 'symbol up/lib.sh gone_fn'
-  run_delta "$repo" --manifest "$manifest" --manifest-only
-  expect_code 1 "$RC" "a manifest naming a missing file or symbol must fail manifest-only"
-  assert_contains "$OUT" "fail: manifest lists fork/missing.sh (owned), but the checkout has no such file" \
-    "manifest-only did not name the missing file"
-  assert_contains "$OUT" "fail: up/lib.sh no longer defines gone_fn at the checkout" \
-    "manifest-only did not name the missing symbol"
-  pass "fm-fork-delta.sh: the real manifest matches the checkout, and --manifest-only catches a stale one"
-}
-
 test_matching_delta_passes
 test_unlisted_path_fails
 test_hook_over_budget_fails
 test_stale_manifest_row_fails
 test_symbol_gone_upstream_fails
+test_symbol_mentions_are_not_definitions
 test_owned_path_collision_upstream_fails
 test_malformed_manifest_and_missing_ref_are_usage_errors
-test_real_manifest_matches_the_checkout

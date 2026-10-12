@@ -1612,6 +1612,7 @@ work_is_landed() {
   content_in_default && return 0
   fork_target_files_match
 }
+teardown_require_source "$SCRIPT_DIR/fm-fork-landed-lib.sh"
 # shellcheck source=bin/fm-fork-landed-lib.sh
 . "$SCRIPT_DIR/fm-fork-landed-lib.sh"
 

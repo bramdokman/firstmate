@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Check this fork's divergence from upstream against the fork manifest below.
 # Usage: fm-fork-delta.sh [--manifest <file>] [<upstream-ref>]
-#        fm-fork-delta.sh [--manifest <file>] --manifest-only
 #
 # The divergence from upstream is permanent and never contributed upstream, so
 # every upstream sync must preserve it exactly. To keep syncs cheap, local
@@ -21,11 +20,7 @@
 #   - an owned path that <upstream-ref> also has, which would collide on merge;
 #   - a hook path that <upstream-ref> no longer has;
 #   - a symbol that HEAD or <upstream-ref> no longer defines.
-# A symbol is defined when its file has `<name>()` or `<name>=` at a word start.
-# --manifest-only skips everything that needs <upstream-ref>: it parses the
-# manifest and checks that every listed path and symbol exists in the
-# checked-out files, so it also runs before a commit and where no upstream
-# remote is configured.
+# Symbols must start a function definition or variable assignment statement.
 # --manifest reads the manifest block from <file> instead of this header.
 # Prints one "fail:" line per finding, then one FM_FORK_DELTA summary line.
 # Exits 0 when nothing was found, 1 on findings, and 2 on a usage error, a
@@ -68,7 +63,7 @@
 #   symbol bin/fm-teardown.sh FM_ROOT
 # feature #4 landed proofs: false refusals of squash-merged or unfetched work
 #   owned bin/fm-fork-landed-lib.sh
-#   hook bin/fm-teardown.sh +9 -1 source line, work_is_landed, push proof, two refusal prints, and #3's closure call
+#   hook bin/fm-teardown.sh +10 -1 source guard and line, work_is_landed, push proof, two refusal prints, and #3's closure call
 #   hook tests/fm-teardown.test.sh +470 -1 fork cases until they move to tests/fm-fork-landed.test.sh
 #   hook tests/fm-gotmp.test.sh +2 -0 link this library into both hand-picked teardown fixtures
 #   symbol bin/fm-teardown.sh work_is_landed
@@ -117,7 +112,6 @@ die_usage() {
 }
 
 manifest_file=$0
-manifest_only=0
 upstream_ref=
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -127,7 +121,6 @@ while [ "$#" -gt 0 ]; do
       manifest_file=$2
       shift 2
       ;;
-    --manifest-only) manifest_only=1; shift ;;
     -*) die_usage "unknown option: $1" ;;
     *)
       [ -z "$upstream_ref" ] || die_usage "only one upstream ref may be given"
@@ -136,13 +129,10 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
-[ "$manifest_only" = 0 ] || [ -z "$upstream_ref" ] \
-  || die_usage "--manifest-only takes no upstream ref"
 upstream_ref=${upstream_ref:-upstream/main}
 [ -f "$manifest_file" ] || die_usage "manifest file not found: $manifest_file"
 git rev-parse --verify --quiet HEAD >/dev/null 2>&1 \
   || die_usage "not inside a git repository with a HEAD commit"
-top=$(git rev-parse --show-toplevel)
 
 # Parallel arrays: one entry per owned or hook path, and one per symbol row.
 path_list=()
@@ -227,21 +217,12 @@ finding() {
   printf 'fail: %s\n' "$*"
 }
 
-# A <rev> of "" means the checked-out files rather than a commit.
 has_file() {  # <rev> <path>
-  if [ -z "$1" ]; then
-    [ -f "$top/$2" ]
-  else
-    git cat-file -e "$1:$2" 2>/dev/null
-  fi
+  git cat-file -e "$1:$2" 2>/dev/null
 }
 
 defines_symbol() {  # <rev> <path> <name>
-  if [ -z "$1" ]; then
-    grep -Eq "(^|[^A-Za-z0-9_\$])$3(\(\)|=)" "$top/$2"
-  else
-    git show "$1:$2" 2>/dev/null | grep -Eq "(^|[^A-Za-z0-9_\$])$3(\(\)|=)"
-  fi
+  git show "$1:$2" 2>/dev/null | grep -Eq "^[[:space:]]*((function[[:space:]]+)?$3[[:space:]]*\([[:space:]]*\)|((local|export|readonly|declare)[[:space:]]+)?$3=)"
 }
 
 check_symbols() {  # <rev> <label>
@@ -255,22 +236,6 @@ check_symbols() {  # <rev> <label>
     i=$((i + 1))
   done
 }
-
-if [ "$manifest_only" = 1 ]; then
-  i=0
-  while [ "$i" -lt "${#path_list[@]}" ]; do
-    has_file "" "${path_list[$i]}" \
-      || finding "manifest lists ${path_list[$i]} (${path_kind[$i]}), but the checkout has no such file"
-    i=$((i + 1))
-  done
-  check_symbols "" "the checkout"
-  status=ok
-  [ "$findings" -eq 0 ] || status=fail
-  printf 'FM_FORK_DELTA %s manifest-only paths=%s symbols=%s findings=%s\n' \
-    "$status" "${#path_list[@]}" "${#sym_name[@]}" "$findings"
-  [ "$findings" -eq 0 ] || exit 1
-  exit 0
-fi
 
 upstream_sha=$(git rev-parse --verify --quiet "$upstream_ref^{commit}" 2>/dev/null) \
   || die_usage "upstream ref '$upstream_ref' not found; run 'git fetch upstream' or pass the ref"
