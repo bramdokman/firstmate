@@ -480,6 +480,65 @@ test_dirty_pool_refuses_without_discarding_work() {
   pass "a dirty pooled worktree is refused without discarding its local work"
 }
 
+# Replaces the case's no-op treehouse with one that logs every call and makes
+# `return --force` as destructive as the real one, so a forced return of a slot
+# holding work is observable as lost work rather than a silent no-op.
+use_destructive_treehouse() {
+  TREEHOUSE_LOG="$CASE_DIR/treehouse.log"
+  : > "$TREEHOUSE_LOG"
+  cat > "$FAKEBIN_DIR/treehouse" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> '$TREEHOUSE_LOG'
+if [ "\${1:-}" = return ] && [ "\${2:-}" = --force ] && [ -n "\${3:-}" ]; then
+  git -C "\$3" reset -q --hard && git -C "\$3" clean -qfdx
+fi
+exit 0
+SH
+  chmod +x "$FAKEBIN_DIR/treehouse"
+}
+
+test_failed_spawn_returns_only_a_slot_proven_clean() {
+  local rec id out status
+
+  id='pool-dirty-abort-r1'
+  rec=$(make_case dirty-abort "$id")
+  read_case_record "$rec"
+  use_destructive_treehouse
+  printf 'keep this local work\n' > "$POOL_DIR/uncommitted.txt"
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn succeeded despite a dirty pooled worktree"
+  assert_contains "$out" "is not clean" "spawn did not refuse the dirty slot at base refresh"
+  assert_no_grep "return" "$TREEHOUSE_LOG" \
+    "the failed spawn handed a slot that already held uncommitted work to treehouse return"
+  assert_grep 'keep this local work' "$POOL_DIR/uncommitted.txt" \
+    "the failed spawn discarded the dirty slot's uncommitted work"
+  assert_contains "$out" "leaving leased worktree $POOL_DIR in place" \
+    "the spawn error did not report the dirty slot it left in place"
+  if [ "${FM_TEST_EVIDENCE:-0}" = 1 ]; then
+    printf '# observed dirty-slot abort:\n%s\ntreehouse calls:\n%s\n' "$out" "$(cat "$TREEHOUSE_LOG")"
+  fi
+
+  id='pool-clean-abort-r1'
+  rec=$(make_case clean-abort "$id")
+  read_case_record "$rec"
+  use_destructive_treehouse
+  git -C "$POOL_DIR" remote set-url origin "file://$CASE_DIR/missing-origin.git"
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn succeeded despite an unreachable origin"
+  assert_contains "$out" "could not fetch origin" \
+    "the clean-slot spawn did not fail after its clean proof"
+  assert_grep "return --force $POOL_DIR" "$TREEHOUSE_LOG" \
+    "a failed spawn no longer returns a slot it proved clean"
+  assert_not_contains "$out" "leaving leased worktree" \
+    "a failed spawn kept a slot it had proved clean"
+  if [ "${FM_TEST_EVIDENCE:-0}" = 1 ]; then
+    printf '# observed clean-slot abort:\n%s\ntreehouse calls:\n%s\n' "$out" "$(cat "$TREEHOUSE_LOG")"
+  fi
+  pass "a failed spawn force-returns only a pooled slot it proved clean"
+}
+
 test_unresolved_remote_default_refuses_pool() {
   local rec id out status before
   id='pool-unresolved-default-r5'
@@ -975,6 +1034,7 @@ test_non_main_default_branch_refreshes_before_branching
 test_unfetched_home_clone_cannot_leak_a_stale_base
 test_direct_pr_and_scout_refresh_before_launch
 test_dirty_pool_refuses_without_discarding_work
+test_failed_spawn_returns_only_a_slot_proven_clean
 test_unresolved_remote_default_refuses_pool
 test_unreachable_origin_refuses_stale_pool_base
 test_originless_pool_launches_without_a_freshness_fetch
