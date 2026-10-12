@@ -105,7 +105,6 @@
 # ordinary ship brief and the durable contract written during scout promotion.
 # It takes the same optional trailing forge argument, because the rule that keeps
 # a worker off a remote is exactly the rule that changes when the forge does.
-# fm_dod_delivery_evidence owns the PR-evidence gate both PR-based blocks end with; local-only and the Gerrit blocks carry no part of it.
 
 # shellcheck source=bin/fm-pr-lib.sh
 . "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-pr-lib.sh"
@@ -401,26 +400,6 @@ There is no pull request, no \`gh-axi\` call, and no forge CI result to report: 
 EOF
 }
 
-# fm_dod_delivery_evidence owns the evidence gate for the PR-based modes. Measured
-# failure: workers on every harness reported "done: committed <sha>" with no PR,
-# and "checks green" on a fork PR whose workflow runs sat at action_required so
-# nothing had run at all. Both read the absence of a visible failure as success,
-# so the delivery report has to name the positive evidence each half requires.
-# The gate governs only the done line that names a PR: the no-mistakes Stage 1
-# handoff has no PR by design and must not read it as a blocker. local-only
-# never gets the gate at all: it has no PR by definition. Neither do the
-# forge=gerrit blocks: they open no pull request and report no forge CI, and
-# fm_dod_accept_ship_done already refuses their published-for-review report
-# unless it names a canonical Gerrit change whose current patch set carries
-# the worker copy's HEAD tree.
-fm_dod_delivery_evidence() {
-  cat <<'EOF'
-**Neither half of the delivery report - the done line that names a PR - may be inferred from the absence of a failure.**
-1. A PR must exist and you must have its real URL. A commit, or even a pushed branch, is not a delivered PR - never claim delivery without one: if the report should name a PR and none exists, append `blocked [at=<epoch>]: {what is actually true}` instead.
-2. `checks green` may describe only checks that actually ran and passed. `gh-axi pr checks <number>` printing nothing, reporting no checks, or listing only skipped, queued, or pending runs is NOT green - a fork PR awaiting approval sits at `action_required` and runs nothing. If nothing ran, never write `checks green`: report what you actually see and let firstmate decide.
-EOF
-}
-
 fm_dod_block() {  # <mode> <task-id> [branch] [<forge>] [<base>]
   local mode=$1 id=$2 forge=${4:-none} base=${5:-}
   local branch=${3:-fm/$id} pr_base='' nm_base='' base_q
@@ -486,8 +465,7 @@ EOF
 Delivery contract: mode=direct-PR
 Ship branch: $branch
 This task ships **direct-PR**: you raise the PR yourself, without the no-mistakes pipeline.
-The implementation stage is complete only when committed on your branch.
-Committing is not delivering: the task is complete only when a PR exists for your branch.
+The task is complete only when committed on your branch.
 When it is implemented and committed, push your branch and open a PR with \`gh-axi\` that is ready for review, not a draft$pr_base.
 Before you report done, read the PR back from the forge and confirm it is not a draft (\`gh-axi pr view <number>\` must print \`draft: no\`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with \`gh-axi pr ready <number>\`.
 A draft cannot be merged, so a done report on one leaves the merge unasked.
@@ -495,9 +473,8 @@ Then append \`done [at=<epoch>]: PR {url}\` to the status file and stop.
 That \`done:\` is accepted only when this copy's HEAD - your latest commit - is pushed to your PR branch; the check tests that commit, not merely that a branch moved.
 If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the draft is held}\` instead of done.
 Do NOT run /no-mistakes. The configured merge authority decides whether to merge the PR; firstmate relays the outcome.
-
 EOF
-      fm_dod_delivery_evidence
+      "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-fork-delivery-evidence.sh" "$forge" || return 1
       ;;
     local-only:*)
       cat <<EOF
@@ -517,8 +494,7 @@ EOF
 # Definition of done
 Delivery contract: mode=no-mistakes
 Ship branch: $branch
-This ships in two stages, and the first one is a handoff, not delivery.
-Stage 1 - the implementation is complete when committed on your branch.
+The task is complete only when committed on your branch.
 When you believe it is complete, append \`done [at=<epoch>]: {summary}\` to the status file and stop.
 Firstmate will then instruct you to run /no-mistakes to validate and ship a PR.
 That first \`done:\` is the handoff that starts the pipeline, which owns the push; it is not a request to push from this copy.
@@ -527,15 +503,13 @@ EOF
       fm_nm_driving_block "$forge"
       cat <<EOF
 
-Stage 2 - delivery.
 After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge), read the PR back from the forge and confirm it is not a draft (\`gh-axi pr view <number>\` must print \`draft: no\`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with \`gh-axi pr ready <number>\`.
 A draft cannot be merged, so a done report on one leaves the merge unasked.
 Then append \`done [at=<epoch>]: PR {url} checks green\` and stop. You are finished.
 That CI-ready \`done:\` is accepted only when this copy's HEAD - your latest commit - is one the /no-mistakes run pushed, so commit nothing after the run; the check tests that commit, not merely that a branch moved.
 If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the draft is held}\` instead of done.
-
 EOF
-      fm_dod_delivery_evidence
+      "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-fork-delivery-evidence.sh" "$forge" || return 1
       ;;
     *)
       echo "error: fm_dod_block: unknown delivery mode '$mode'" >&2
