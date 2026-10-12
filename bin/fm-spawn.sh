@@ -3290,6 +3290,31 @@ real_path_or_raw() { # <path>
   fi
 }
 
+# A slot the pool just handed this task can still be named by another task
+# record in this home: that task's worker exited, the pool released and
+# reissued its slot, and its worktree= line went stale. Nothing is wrong with
+# this spawn - the claim it just wrote makes that stale task's teardown leave
+# the slot alone - but this task's own teardown refuses while both records name
+# one slot (bin/fm-teardown.sh's slot-ownership header), so the stale record is
+# surfaced now, while it is cheap to reconcile, rather than at cleanup time.
+# This home only; teardown's own scan covers the other locally registered homes.
+warn_slot_named_by_other_records() {  # <worktree>
+  local slot meta other_id field other_path
+  slot=$(cd "$1" 2>/dev/null && pwd -P) || return 0
+  for meta in "$STATE"/*.meta; do
+    [ -f "$meta" ] && [ ! -L "$meta" ] || continue
+    other_id=$(basename "$meta" .meta)
+    [ "$other_id" != "$ID" ] || continue
+    for field in worktree home; do
+      other_path=$(fm_meta_get "$meta" "$field")
+      [ -n "$other_path" ] || continue
+      [ "$(cd "$other_path" 2>/dev/null && pwd -P)" = "$slot" ] || continue
+      echo "warning: Treehouse pool slot $slot was reissued to task $ID, but task $other_id's record still names it as its $field; $other_id's worker no longer holds that slot. Tear $other_id down first - its cleanup now leaves this slot untouched - because $ID's own cleanup refuses while both records name one slot." >&2
+      break
+    done
+  done
+}
+
 # Session-provider container-ensure + task creation. tmux stays exactly as P1
 # left it (same session-name / new-window sequence, see bin/backends/tmux.sh);
 # a herdr spawn goes through the version-gated, workspace-per-HOME,
@@ -4435,6 +4460,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
       exit 1
     fi
     SPAWN_SLOT_CLAIMED=1
+    warn_slot_named_by_other_records "$WT"
   fi
 fi
 if [ "$RELAUNCH" -eq 0 ] && [ "$KIND" != secondmate ]; then
