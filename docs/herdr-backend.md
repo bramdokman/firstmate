@@ -831,7 +831,6 @@ Tests use thin compatibility wrappers in `tests/herdr-test-safety.sh` and never 
 - A Firstmate outside Herdr cannot resolve a launcher workspace, so a colliding home label refuses new spawns until the collision is cleared.
 - Ghost and placeholder recognition uses ANSI de-emphasis when available; an unstyled glyph row carrying trailing non-idle text fails safely to `unknown`.
 - Only tmux and Herdr can host the away-mode supervisor terminal.
-- A spawn that fails before it publishes task metadata - a settle timeout or a failed project task bootstrap - cleans up only the panes a projected create made, so its task container and leased Treehouse worktree can need manual cleanup; [spawn failure cleanup](configuration.md#spawn-failure-cleanup) owns the cleanup contract for the other backends.
 
 ## Regression entry points
 

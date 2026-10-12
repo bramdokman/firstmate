@@ -85,12 +85,6 @@
 # on that forge. bin/fm-spawn.sh reads that line and refuses to launch a ship task
 # whose explicit --mode or registered forge disagrees, so an adjusted brief and the
 # recorded task metadata cannot drift apart.
-# Both PR-based modes carry an evidence gate on the delivery report when they open a
-# pull request, because workers repeatedly read the absence of a visible failure as
-# success: a real PR URL must exist, and "checks green" may describe only checks that
-# actually ran and passed.
-# local-only has no PR by definition, and the forge=gerrit blocks open no pull request
-# and report no forge CI, so neither carries any part of that gate; bin/fm-dod-lib.sh owns the gate text.
 # Ship briefs begin with a worktree-isolation assertion before the branch step.
 # Both crewmate scaffolds carry one shared rule against administering the
 # infrastructure every lane shares - the no-mistakes daemon and the worktree pool

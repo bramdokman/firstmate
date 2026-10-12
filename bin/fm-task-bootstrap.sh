@@ -48,6 +48,37 @@
 # An invalid declaration, failed fingerprint, failed run, or failed marker write
 # exits nonzero and never publishes a new success marker.
 # Projects without the declaration are unchanged and produce no output.
+#
+# The project owns its prerequisite commands and staleness inputs, so Firstmate
+# has no package-manager, generator, lockfile, or toolchain-specific branches.
+# Treehouse's own repository configuration is not a substitute: its
+# repository-level hooks are ignored for safety, and its user-level hooks do not
+# fail worktree acquisition when a command fails.
+#
+# This script and its regression test are fork-owned (bin/fm-fork-delta.sh owns
+# the fork manifest), so this header, not docs/, owns the spawn integration below.
+# bin/fm-spawn.sh runs it on every runtime backend after proving the task has an
+# isolated worktree and refreshing its base, and before launching any fresh ship
+# or scout worker; a relaunch reuses the recorded worktree and does not rerun it.
+# A failure here stops the spawn before task metadata is published and before any
+# worker launches.
+# The declaration runs while the project's Treehouse slot lock is held, so another
+# spawn or teardown of a pooled task for the same project refuses with the
+# "another Treehouse slot allocation or return is in progress" message until it
+# finishes or hits its bound; keep declared bounds short.
+#
+# Spawn failure cleanup: when a tmux, zellij, or cmux spawn fails before it
+# publishes task metadata (a settle timeout, or a failed bootstrap here), it
+# releases the endpoint it created. It force-returns the acquired Treehouse
+# worktree only after that exact path passed both the isolated-worktree proof and
+# the base refresh's clean-status check; a slot that already held uncommitted
+# changes, or a spawn that failed before proving it clean, leaves the leased
+# worktree in place and names its path for manual inspection and return once its
+# changes are safe. tests/fm-spawn-pool-base-freshen.test.sh holds the dirty-slot
+# preservation and clean-slot cleanup regressions. An Orca spawn removes its own
+# terminal and worktree on the same failure. A failed Herdr spawn cleans up only
+# the panes a projected create made, so its task container and leased Treehouse
+# worktree can need manual cleanup.
 set -eu
 
 usage() {
