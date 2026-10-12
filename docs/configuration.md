@@ -727,36 +727,6 @@ An existing linked-worktree home that predates this rule advances through its ma
 
 A local standalone-clone home cannot receive a primary-local commit through that no-fetch sync, so it receives the rule through `/updatefirstmate`'s origin refresh instead.
 
-## Project task bootstrap (.firstmate/bootstrap)
-
-A project can opt into task environment preparation by tracking an executable `.firstmate/bootstrap` declaration.
-The declaration must be tracked by Git and must not be a symbolic link or sit behind a symlinked `.firstmate` directory, so what runs is always reviewable content belonging to the worktree.
-
-`fm-spawn.sh` runs the declaration through `fm-task-bootstrap.sh` after proving the task has an isolated worktree and refreshing its base, and before launching any fresh ship or scout worker on every runtime backend; a relaunch reuses the recorded worktree and does not rerun it.
-The project owns its prerequisite commands and staleness inputs, so Firstmate has no package-manager, generator, lockfile, or toolchain-specific branches.
-A worktree-specific success fingerprint makes a matching preserved environment a cheap skip, while a malformed declaration or failed prerequisite stops the spawn loudly before task metadata and worker launch.
-
-Run `bin/fm-task-bootstrap.sh --help` for the authoritative declaration modes, fingerprint requirements, marker location, and failure behavior.
-Treehouse's own repository configuration is not a substitute: its repository-level hooks are ignored for safety, and its user-level hooks do not fail worktree acquisition when a command fails.
-
-### Noninteractive runs and time bound
-
-Declarations must be noninteractive: every mode runs with stdin from `/dev/null` and under a wall-clock bound, so a prompt or a stalled download fails the spawn instead of blocking the primary session and the rest of a serialized batch.
-The bound defaults to 900 seconds, and a project overrules it by handling the optional `.firstmate/bootstrap timeout` mode and printing a positive whole number of seconds.
-
-The declaration runs while the project's Treehouse slot lock is held, so another spawn or teardown of a pooled task for the same project refuses with the "another Treehouse slot allocation or return is in progress" message until it finishes or hits its bound; keep declared bounds short.
-
-The bound is enforced by `timeout`, `gtimeout`, or a one-shot inline Node executor, in that order, so it holds on stock macOS as well as Linux; there is no unbounded fallback, and a host with none of the three refuses the declaration instead of running it.
-An overrun terminates the declaration's whole process group with `SIGTERM` and then `SIGKILL`, and `FM_TASK_BOOTSTRAP_TIMEOUT_RUNNER` pins one of `timeout`, `gtimeout`, or `node` when a host needs a specific one.
-
-### Spawn failure cleanup
-
-When a tmux, zellij, or cmux spawn fails before it publishes task metadata, it releases the endpoint it created.
-It force-returns the acquired Treehouse worktree only after that exact path passes both the isolated-worktree proof and the base refresh's clean-status check.
-If the slot already holds uncommitted changes or the spawn fails before proving it clean, cleanup leaves the leased worktree in place and reports its path for manual inspection and return once its changes are safe.
-The dirty-slot preservation and clean-slot failure cleanup regressions live in [`tests/fm-spawn-pool-base-freshen.test.sh`](../tests/fm-spawn-pool-base-freshen.test.sh).
-An Orca spawn removes its own terminal and worktree on the same failure, while a failed Herdr spawn still leaves residue ([herdr-backend.md](herdr-backend.md#active-limits)).
-
 ## Harness support
 
 claude, codex, opencode, pi, pi-signed, grok, kimi, cursor, and omp are empirically verified for crewmate and secondmate launches; gemini is verified for crewmate and scout launches only, and [README requirements](../README.md#requirements) own the set supported for the primary session.
@@ -2411,7 +2381,6 @@ FM_WORKTREE_WRITE_TIMEOUT=10       # wall-clock seconds that one walk may take, 
 FM_WATCH_TRIAGE_LOG_MAX_BYTES=262144   # size cap for the watcher's absorbed-wake debug log
 FM_FLEET_SYNC_BOOTSTRAP_TIMEOUT=     # optional seconds allowed for bootstrap's best-effort clone refresh; unset/blank defaults to max(20, 5 + 3 * origin-backed-project-count)
 FM_FLEET_PRUNE=1        # set to 0 to skip pruning local branches whose upstream is gone
-FM_LS_REMOTE_TIMEOUT_SECS=30       # seconds fm-teardown.sh allows each read-only git ls-remote branch lookup when a timeout command is available; a lookup that times out is recorded as unknown, never as proof the work is unpushed
 FM_STALE_WORKTREE_LOCK_AGE_SECS=30       # min mtime age before fm-teardown.sh treats a leftover worktree git index.lock as provably stale
 FM_TREEHOUSE_RETURN_LOCK_RETRIES=3        # retries after a treehouse return fails on the transient git index.lock signature
 FM_TREEHOUSE_RETURN_LOCK_RETRY_WAIT_SECS=1 # seconds fm-teardown.sh waits before each retry after that signature
