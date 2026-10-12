@@ -1,0 +1,12 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/clean/home
+fatal: '/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/missing.git' does not appear to be a git repository
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+error: could not fetch origin for pooled worktree '/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/clean/project/.treehouse/project-92224e/1/project'; refusing to launch from a potentially stale base
+note: endpoint lab-clean:fm-live-clean for live-clean was closed after the failed spawn, so there is no window left to inspect
+spawn exit=1
+acquired=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/clean/project/.treehouse/project-92224e/1/project
+base  main  (repository default)
+🌳 No worktrees in pool.

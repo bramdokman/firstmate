@@ -1,0 +1,13 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/home
+error: pooled worktree '/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/project/.treehouse/project-f32fb4/1/project' is not clean; refusing to discard uncommitted work while refreshing its base
+note: endpoint lab-dirty:fm-live-dirty for live-dirty was closed after the failed spawn, so there is no window left to inspect
+warning: leaving leased worktree /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/project/.treehouse/project-f32fb4/1/project in place after the failed spawn of live-dirty: it was not proven clean when this spawn took it, so a forced return could discard uncommitted work; inspect it and return it manually once its changes are safe
+spawn exit=1
+acquired=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/project/.treehouse/project-f32fb4/1/project
+MM file
+?? untracked
+staged survives
+unstaged survives
+untracked survives
+base  main  (repository default)
+1     dirty        ~/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/project/.treehouse/project-f32fb4/1/project  (detached)

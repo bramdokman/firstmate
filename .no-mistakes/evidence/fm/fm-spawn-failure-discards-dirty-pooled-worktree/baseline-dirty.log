@@ -1,0 +1,7 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/home
+error: pooled worktree '/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/project/.treehouse/project-f32fb4/1/project' is not clean; refusing to discard uncommitted work while refreshing its base
+note: endpoint lab-dirty:fm-live-dirty for live-dirty was closed after the failed spawn, so there is no window left to inspect
+spawn exit=1
+acquired=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/project/.treehouse/project-f32fb4/1/project
+base
+cat: /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QT2HGXQTAS0N0MC48HMJWE/.test-tmp/live/dirty/project/.treehouse/project-f32fb4/1/project/untracked: No such file or directory
