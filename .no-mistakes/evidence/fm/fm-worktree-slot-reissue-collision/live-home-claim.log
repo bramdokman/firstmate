@@ -1,0 +1,4 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/h
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+warning: Treehouse pool slot /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/3/project was reissued to task home-claim, but task stale-home's record still names it as its home; stale-home's worker no longer holds that slot. Tear stale-home down first - its cleanup now leaves this slot untouched - because home-claim's own cleanup refuses while both records name one slot.
+spawned home-claim harness=codex kind=scout window=primary:fm-home-claim worktree=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/3/project

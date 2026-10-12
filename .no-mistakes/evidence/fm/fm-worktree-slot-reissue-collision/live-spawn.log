@@ -1,0 +1,10 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/h
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: Treehouse pool slot /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/1/project was reissued to task reissued, but task stale's record still names it as its worktree; stale's worker no longer holds that slot. Tear stale down first - its cleanup now leaves this slot untouched - because reissued's own cleanup refuses while both records name one slot.
+spawned reissued harness=codex kind=scout window=primary:fm-reissued worktree=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/1/project

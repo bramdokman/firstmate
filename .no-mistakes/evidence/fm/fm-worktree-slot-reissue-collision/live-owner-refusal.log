@@ -1,0 +1,6 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/h
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+REFUSED: task reissued's recorded worktree /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/1/project is also task stale's recorded worktree.
+Returning that pool slot would kill stale's processes and reset its copy, so nothing was changed - not even with --force.
+Reconcile whichever record is wrong (bin/fm-crew-state.sh reissued; bin/fm-crew-state.sh stale), then re-run teardown.
+exit=1

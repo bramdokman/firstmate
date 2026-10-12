@@ -1,0 +1,48 @@
+Published task record reissued:
+window=primary:fm-reissued
+endpoint_task_id=reissued
+worktree=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/1/project
+project=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/project
+harness=codex
+kind=scout
+tasktmp=/tmp/fm-reissued
+model=default
+effort=default
+spawn_gen=s1791800391.2696490.31122
+Published task record sole:
+window=primary:fm-sole
+endpoint_task_id=sole
+worktree=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/2/project
+project=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/project
+harness=codex
+kind=scout
+tasktmp=/tmp/fm-sole
+model=default
+effort=default
+spawn_gen=s1791800466.2733212.22926
+Published task record home-claim:
+window=primary:fm-home-claim
+endpoint_task_id=home-claim
+worktree=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/slots/.treehouse/project-49cfb9/3/project
+project=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/project
+harness=codex
+kind=scout
+tasktmp=/tmp/fm-home-claim
+model=default
+effort=default
+spawn_gen=s1791800506.2769143.11013
+Slot 1 owner claim:
+task=reissued
+home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/h
+Slot 2 owner claim:
+task=sole
+home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/h
+Slot 3 owner claim:
+task=home-claim
+home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4QSV0ZHTYXXQNZHK8H6VWZW/.l/h
+Unpublished commit after stale cleanup: 5d6950c46498a6949e9009abf6fbbcdbd063f789
+Preserved content: unpublished work
+0: node* (1 panes) [120x40] [layout aafd,120x40,0,0,0] @0 (active)
+1: fm-reissued (1 panes) [120x40] [layout aafe,120x40,0,0,1] @1
+2: fm-sole (1 panes) [120x40] [layout aaff,120x40,0,0,2] @2
+3: fm-home-claim (1 panes) [120x40] [layout ab00,120x40,0,0,3] @3
