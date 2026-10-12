@@ -743,6 +743,46 @@ test_pool_slot_claim_follows_the_spawn_outcome() {
   pass "a Treehouse slot claim names the launched task, refuses when unclaimable, and is dropped by a locked abort"
 }
 
+# A reissued slot: the pool hands this spawn a slot that a stale task record in
+# the same home still names, through another spelling of the path. The spawn
+# still launches and claims it, names the stale task, and leaves that record
+# alone; a record naming a different path is not reported.
+test_reissued_pool_slot_names_the_stale_record() {
+  local rec id out status
+
+  id='pool-slot-reissued-r1'
+  rec=$(make_case slot-reissued "$id")
+  read_case_record "$rec"
+  lay_out_as_pool_slot
+  ln -s "$CASE_DIR/slots" "$CASE_DIR/slots-link"
+  printf 'id=stale-task\nworktree=%s\n' "$CASE_DIR/slots-link/1/project" \
+    > "$HOME_DIR/state/stale-task.meta"
+  printf 'id=neighbour-task\nworktree=%s\n' "$PROJECT_DIR" \
+    > "$HOME_DIR/state/neighbour-task.meta"
+  out=$(run_spawn "$id" --scout)
+  status=$?
+  expect_code 0 "$status" "a reissued slot should still launch"$'\n'"$out"
+  assert_contains "$out" "task stale-task's record still names it as its worktree" \
+    "spawn did not name the stale record that still holds its slot"
+  assert_not_contains "$out" "neighbour-task" \
+    "spawn reported a record that names a different path"
+  grep -Fxq -- "task=$id" "$SLOT_CLAIM" \
+    || fail "the reissued slot claim does not name the spawned task: $(cat "$SLOT_CLAIM")"
+  assert_grep "worktree=$CASE_DIR/slots-link/1/project" "$HOME_DIR/state/stale-task.meta" \
+    "spawn rewrote the stale task's record"
+
+  id='pool-slot-sole-r1'
+  rec=$(make_case slot-sole "$id")
+  read_case_record "$rec"
+  lay_out_as_pool_slot
+  out=$(run_spawn "$id" --scout)
+  status=$?
+  expect_code 0 "$status" "a sole-claimed slot should launch"$'\n'"$out"
+  assert_not_contains "$out" "was reissued to task" \
+    "spawn warned about a slot no other record names"
+  pass "a reissued Treehouse slot names the stale record still holding it, without refusing the spawn"
+}
+
 publish_feature_branch() { # <branch>
   git -C "$CASE_DIR/publisher" checkout --quiet -b "$1"
   printf 'only on %s\n' "$1" > "$CASE_DIR/publisher/feature-only.txt"
@@ -876,6 +916,7 @@ test_scout_base_branch_refused_on_gerrit_forge() {
 
 test_remote_seeded_home_spawns_from_treehouse_pool
 test_pool_slot_claim_follows_the_spawn_outcome
+test_reissued_pool_slot_names_the_stale_record
 test_linked_spawning_home_rejects_primary_before_refresh
 test_stale_pool_base_refreshes_before_branching
 test_named_base_branch_starts_from_that_branch
