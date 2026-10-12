@@ -261,7 +261,11 @@
 #   Only after this isolation check, every fresh ship or scout requires a clean
 #   task worktree. When an origin configuration is detected, spawn fetches it,
 #   resolves the current remote default branch (or uses --base-branch, described
-#   above), and resets to its tip. When none is detected, spawn skips that remote freshness check and launches from the
+#   above), and resets to its tip. That fetch is spawn's own and runs in the
+#   task worktree, so the base never depends on the worktree provider having
+#   fetched or on how recently fleet sync fetched the project clone; a linked
+#   worktree shares the clone's remote-tracking refs, so a successful spawn
+#   also advances the clone's. When none is detected, spawn skips that remote freshness check and launches from the
 #   clean worktree's current HEAD. Relaunch reuses the recorded worktree without
 #   fetching or resetting its base. An unreachable detected origin, unresolved
 #   default branch, or non-clean worktree refuses a fresh spawn rather than

@@ -2,7 +2,8 @@
 # Regression tests for fm-spawn's pooled-worktree base refresh.
 #
 # A treehouse pool can return a clean detached worktree whose origin/main was
-# advanced after the worktree was allocated.
+# advanced after the worktree was allocated, or cut from a home project clone
+# that has not fetched since origin advanced.
 # These tests drive the real spawn path with a fake terminal, then prove it
 # starts the worker from the fetched origin tip, launches a clean origin-less
 # pool as-is, or stops when a configured origin is unusable.
@@ -213,6 +214,53 @@ test_non_main_default_branch_refreshes_before_branching() {
   [ "$branch_head" = "$current" ] || fail "spawn did not refresh to current origin/$DEFAULT_BRANCH"
   [ "$branch_head" != "$INITIAL_SHA" ] || fail "fixture did not prove origin/$DEFAULT_BRANCH advanced past the pool base"
   pass "a stale pooled worktree resolves and refreshes a non-main default branch"
+}
+
+# The home's project clone and every pool slot share one ref store, so a clone
+# left unfetched hands a new slot a stale origin/main. The fake treehouse fetches
+# nothing, so only spawn's own refresh can make the base current here.
+test_unfetched_home_clone_cannot_leak_a_stale_base() {
+  local rec id out status forge_tip n
+  id='pool-unfetched-clone-r1'
+  rec=$(make_case unfetched-clone "$id")
+  read_case_record "$rec"
+  for n in 2 3 4; do
+    printf 'later main commit %s\n' "$n" > "$CASE_DIR/publisher/later-$n.txt"
+    git -C "$CASE_DIR/publisher" add "later-$n.txt"
+    git -C "$CASE_DIR/publisher" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -qm "later-$n"
+  done
+  git -C "$CASE_DIR/publisher" push --quiet origin main
+  forge_tip=$(git -C "$CASE_DIR/origin.git" rev-parse refs/heads/main)
+  # The clone last fetched before origin advanced.
+  git -C "$PROJECT_DIR" update-ref refs/remotes/origin/main "$INITIAL_SHA"
+  [ "$(git -C "$POOL_DIR" rev-parse origin/main)" = "$INITIAL_SHA" ] \
+    && [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$INITIAL_SHA" ] \
+    || fail "fixture did not give the pool slot the clone's stale origin/main"
+  [ "$(git -C "$CASE_DIR/origin.git" rev-list --count "$INITIAL_SHA..$forge_tip")" = 4 ] \
+    || fail "fixture did not put the pool slot behind the forge"
+
+  git -C "$PROJECT_DIR" remote set-url origin "file://$CASE_DIR/missing-origin.git"
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched from the clone's stale origin/main while origin was unreachable"
+  assert_contains "$out" "could not fetch origin" \
+    "spawn did not clearly refuse when it could not prove the base current"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$INITIAL_SHA" ] \
+    || fail "a refused spawn moved the pool slot"
+
+  git -C "$PROJECT_DIR" remote set-url origin "file://$CASE_DIR/origin.git"
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  expect_code 0 "$status" "spawn should refresh a slot cut from an unfetched clone"
+  [ "$(git -C "$POOL_DIR" rev-parse HEAD)" = "$forge_tip" ] \
+    || fail "spawn started the worker behind the forge's current main"
+  [ "$(git -C "$PROJECT_DIR" rev-parse refs/remotes/origin/main)" = "$forge_tip" ] \
+    || fail "the slot's refresh did not also advance the home clone's shared origin/main"
+  if [ "${FM_TEST_EVIDENCE:-0}" = 1 ]; then
+    printf '# observed unfetched-clone refresh: forge=%s slot=%s clone-origin/main=%s\n' \
+      "$forge_tip" "$(git -C "$POOL_DIR" rev-parse HEAD)" "$(git -C "$PROJECT_DIR" rev-parse refs/remotes/origin/main)"
+  fi
+  pass "an unfetched home clone cannot hand a pooled spawn a stale base"
 }
 
 make_originless_case() {  # <name> <id>
@@ -883,6 +931,7 @@ test_base_branch_must_agree_with_the_brief
 test_prose_base_branch_line_is_ignored
 test_scout_base_branch_refused_on_gerrit_forge
 test_non_main_default_branch_refreshes_before_branching
+test_unfetched_home_clone_cannot_leak_a_stale_base
 test_direct_pr_and_scout_refresh_before_launch
 test_dirty_pool_refuses_without_discarding_work
 test_unresolved_remote_default_refuses_pool
