@@ -751,7 +751,10 @@ An overrun terminates the declaration's whole process group with `SIGTERM` and t
 
 ### Spawn failure cleanup
 
-When a tmux, zellij, or cmux spawn does fail before it publishes task metadata, it releases the endpoint it created and returns the Treehouse worktree it acquired rather than leaving either orphaned; only an acquisition that passed the isolated-worktree proof is ever returned.
+When a tmux, zellij, or cmux spawn fails before it publishes task metadata, it releases the endpoint it created.
+It force-returns the acquired Treehouse worktree only after that exact path passes both the isolated-worktree proof and the base refresh's clean-status check.
+If the slot already holds uncommitted changes or the spawn fails before proving it clean, cleanup leaves the leased worktree in place and reports its path for manual inspection and return once its changes are safe.
+The dirty-slot preservation and clean-slot failure cleanup regressions live in [`tests/fm-spawn-pool-base-freshen.test.sh`](../tests/fm-spawn-pool-base-freshen.test.sh).
 An Orca spawn removes its own terminal and worktree on the same failure, while a failed Herdr spawn still leaves residue ([herdr-backend.md](herdr-backend.md#active-limits)).
 
 ## Harness support
