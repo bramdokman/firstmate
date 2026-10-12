@@ -1229,6 +1229,11 @@ ENDPOINT_ABORT_CLEANUP=0
 ## path, so an unvalidated pane reading (a shell that never entered a worktree)
 ## is never handed to `treehouse return --force`.
 ENDPOINT_ABORT_WORKTREE=
+## The forced return discards whatever the slot holds, so it is armed only for
+## the exact path freshen_spawn_worktree_base proved clean. A slot that already
+## held uncommitted changes when this spawn took it, or that failed before that
+## proof, is left in place and named in the spawn error instead.
+ENDPOINT_ABORT_WORKTREE_CLEAN=
 HERDR_PROJECTION_ABORT_CLEANUP=0
 HERDR_PROJECTION_ABORT_SESSION=
 HERDR_PROJECTION_ABORT_TASK_PANE=
@@ -1344,8 +1349,12 @@ spawn_abort_cleanup() {
       fi
     fi
     # Only the exact acquisition validate_spawn_worktree accepted is returned,
-    # never a bare pane reading that merely differed from the project path.
-    if [ -n "${ENDPOINT_ABORT_WORKTREE:-}" ] && command -v treehouse >/dev/null 2>&1; then
+    # never a bare pane reading that merely differed from the project path, and
+    # only once that same path was proven clean.
+    if [ -n "${ENDPOINT_ABORT_WORKTREE:-}" ] &&
+      [ "$ENDPOINT_ABORT_WORKTREE_CLEAN" != "$ENDPOINT_ABORT_WORKTREE" ]; then
+      echo "warning: leaving leased worktree $ENDPOINT_ABORT_WORKTREE in place after the failed spawn of $ID: it was not proven clean when this spawn took it, so a forced return could discard uncommitted work; inspect it and return it manually once its changes are safe" >&2
+    elif [ -n "${ENDPOINT_ABORT_WORKTREE:-}" ] && command -v treehouse >/dev/null 2>&1; then
       ( cd "$PROJ_ABS" && treehouse return --force "$ENDPOINT_ABORT_WORKTREE" ) >/dev/null 2>&1 \
         || echo "warning: could not return leased worktree $ENDPOINT_ABORT_WORKTREE after a failed spawn of $ID; return it manually" >&2
     fi
@@ -3439,6 +3448,7 @@ freshen_spawn_worktree_base() { # <worktree> [<base-branch>]
     fi
     return 1
   fi
+  ENDPOINT_ABORT_WORKTREE_CLEAN=$worktree
   if ! spawn_worktree_has_origin_config "$worktree"; then
     [ -z "$base" ] || {
       echo "error: pooled worktree '$worktree' has no origin, so it cannot start from base branch '$base'" >&2
