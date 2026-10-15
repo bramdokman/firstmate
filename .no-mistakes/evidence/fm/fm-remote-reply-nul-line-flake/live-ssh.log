@@ -1,0 +1,34 @@
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=0
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=0
+working [key=ssh-round-1]: before?after
+SOURCE                       ADAPTER      OWNER      PENDING
+remote-reply-ios             remote-reply live       1
+round=1 original_listener=740055 retained; NUL normalized and reply mirrored
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=40
+working [key=ssh-round-2]: before?after
+SOURCE                       ADAPTER      OWNER      PENDING
+remote-reply-ios             remote-reply live       1
+round=2 original_listener=740055 retained; NUL normalized and reply mirrored
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=80
+working [key=ssh-round-3]: before?after
+SOURCE                       ADAPTER      OWNER      PENDING
+remote-reply-ios             remote-reply live       0
+round=3 original_listener=740055 retained; NUL normalized and reply mirrored
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=120
+working [key=ssh-round-4]: before?after
+SOURCE                       ADAPTER      OWNER      PENDING
+remote-reply-ios             remote-reply live       1
+round=4 original_listener=740055 retained; NUL normalized and reply mirrored
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=160
+working [key=ssh-round-5]: before?after
+SOURCE                       ADAPTER      OWNER      PENDING
+remote-reply-ios             remote-reply live       1
+round=5 original_listener=740055 retained; NUL normalized and reply mirrored
+offset=200
+source bytes=200; committed cursor agrees

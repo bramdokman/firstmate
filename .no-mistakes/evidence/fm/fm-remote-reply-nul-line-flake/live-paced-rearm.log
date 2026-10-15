@@ -1,0 +1,8 @@
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=200
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=200
+working [key=race-1792057979]: held during paced re-arm
+SOURCE                       ADAPTER      OWNER      PENDING
+remote-reply-ios             remote-reply live       1
+PASS: paced re-arm delivered through same listener pid=813802

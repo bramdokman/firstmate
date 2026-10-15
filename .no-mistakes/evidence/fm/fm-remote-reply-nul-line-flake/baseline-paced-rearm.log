@@ -1,0 +1,7 @@
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=256
+registered: remote-reply-ios (remote-reply)
+armed: remote-reply-ios offset=256
+FAIL: paced listener lost reply after re-arm; initial pid=843573
+SOURCE                       ADAPTER      OWNER      PENDING
+remote-reply-ios             remote-reply none       1
