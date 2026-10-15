@@ -129,7 +129,7 @@
 # because there is no established translation from a gh/glab-style flag into
 # a Forgejo API field yet.
 #
-# Before either forge merge, the task's existing per-task control lock
+# Before any forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
 # unreadable row refuses before that command, so a captain approval must be
 # recorded as an `answer --release` before this entrypoint is invoked. While

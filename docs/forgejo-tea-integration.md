@@ -1,8 +1,8 @@
 # Forgejo pull request watch and merge verification
 
 Empirical record for the merge watch and the merge path on Forgejo, alongside the existing GitHub and GitLab ones (`docs/gitlab-merge-watch.md`).
-Every finding here was verified against a real, disposable Forgejo instance rather than assumed from `tea --help`, because several of them contradict what the help text alone would suggest.
-All evidence below was collected on 2026-09-13.
+The live findings below were verified against a disposable Forgejo instance on 2026-09-13 rather than assumed from `tea --help`, because several contradict the help text.
+Unverified behavior and portable regression coverage are identified separately.
 A project opts in with the `forge=forgejo` registry binding, which `bin/fm-project-mode.sh` owns; the watch and merge paths recorded here key off the pull request URL itself, and the binding decides only that a generated ship brief names `tea` rather than `gh-axi`.
 
 ## Versions
@@ -178,6 +178,9 @@ This was the single most consequential finding of this verification pass: a naiv
 
 Read live from `tea api ... /repos/{owner}/{repo}/pulls/{n}` (`state`, `mergeable`, `draft`, `head.sha`) and `tea api ... /repos/{owner}/{repo}/commits/{sha}/status?limit=50&page={p}` (the combined commit status).
 The combined-status endpoint computes its `state` from one page of the latest status per context, so every page is read until an empty one and the head is green only when each non-empty page reads `success`.
+Before accepting any page, including an empty terminator, the merge path requires an object with a string `state` and a `statuses` field containing an array or null.
+An HTTP error body or malformed page is unreadable and refuses the merge even after earlier pages reported success; null statuses remain a valid empty terminator.
+`tests/fm-pr-merge.test.sh` covers these payload checks and multi-page verdicts with fixtures; pagination remains unverified against a live runner, as noted below.
 A positive `draft` reading refuses; an instance too old to report the field still refuses a work-in-progress merge server side.
 `tea api` passes a query string through unchanged, because it builds the request URL by plain concatenation onto the login's `/api/v1` base.
 An already-merged pull request is correctly refused for a second merge attempt:
