@@ -37,11 +37,9 @@
 # of the code root's history covers any fork, the parent, and any clone of
 # either. Lineage that cannot be determined (no code root history, or a shallow
 # side sharing no root) refuses rather than permits. The publication target is
-# compared only against a maintainer scope or task consent: the first remote
-# named upstream, github, or origin (the order gh prefers when resolving a
-# default repository), reduced to lowercase host/owner/repo; a local-path remote
-# is resolved one hop through that repository's own origin, and left as
-# path:<abs> when unreadable. An unknown target never permits.
+# compared only against a maintainer scope or task consent; docs/configuration.md
+# "Firstmate role" owns target selection, including this fork's override.
+# An unknown target never permits.
 #
 # Public functions:
 #   fm_role_file <config-dir>            - the role file path
@@ -222,9 +220,8 @@ fm_role_git_common_dir() {
 }
 
 # fm_role_publication_target <git-dir> - the repository a default publication
-# (gh pr/issue, a no-mistakes PR) would reach: the first of upstream, github,
-# origin that is configured, in the order gh prefers, normalized to
-# host/owner/repo or path:<abs>. Empty when the repo has no such remote.
+# reaches under docs/configuration.md's "Firstmate role" policy, normalized to
+# host/owner/repo or path:<abs>. Empty when no target can be determined.
 fm_role_publication_target() {
   local dir=$1 remote url=
   "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-fork-publication-target.sh" "$dir" && return 0
