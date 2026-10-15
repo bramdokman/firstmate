@@ -1,0 +1,12 @@
+ok - a failed project bootstrap loudly stops spawn before worker launch
+ok - stale fingerprints run bootstrap while matching fingerprints skip it
+ok - a failed prerequisite stays loud and cannot publish a success marker
+ok - only a tracked declaration counts as opt-in
+ok - a symlinked .firstmate parent cannot smuggle in a declaration
+ok - every declared mode runs with stdin from /dev/null
+ok - every available bounded runner stops a hanging run and kills its process group
+ok - a host with no bounded runtime refuses the declaration instead of running it unbounded
+ok - only timeout, gtimeout, or node may be pinned as the bounded runner
+ok - declarations without a timeout mode run under the documented 900s default
+ok - an unvalidated pane path is never returned to the treehouse pool
+# all task-bootstrap tests passed

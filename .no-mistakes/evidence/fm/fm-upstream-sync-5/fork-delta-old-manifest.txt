@@ -1,0 +1,4 @@
+$ bin/fm-fork-delta.sh --manifest <manifest before e193e3f> a24f4cb
+fail: tests/fm-supervision-host.test.sh is in the fork delta (+12 -1) but not in the manifest
+FM_FORK_DELTA fail base=a24f4cb873d8 upstream=a24f4cb paths=20 owned=9 hooks=10 hook_lines=+818/-6 symbols=30 findings=1
+exit=1
