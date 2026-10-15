@@ -627,6 +627,33 @@ test_spawn_consent_agreement() {
 
 # --- fm-promote.sh ----------------------------------------------------------
 
+test_spawn_batch_consent_agreement() {
+  local home out rc consent_arg
+  for consent_arg in --upstream-consent=GitHub.COM/Example/FirstMate --upstream-consent; do
+    home=$(make_role_home "batch-consent-${consent_arg#--}")
+    write_ship_brief "$home" batch-consent-a1 ' upstream-consent=github.com/example/firstmate'
+    write_ship_brief "$home" batch-consent-a2
+    rc=0
+    if [ "$consent_arg" = --upstream-consent ]; then
+      out=$(run_spawn "$home" "batch-consent-a1=$ROOT" "batch-consent-a2=$ROOT" \
+        --harness claude --mode no-mistakes --yolo off \
+        "$consent_arg" GitHub.COM/Example/FirstMate) || rc=$?
+    else
+      out=$(run_spawn "$home" "batch-consent-a1=$ROOT" "batch-consent-a2=$ROOT" \
+        --harness claude --mode no-mistakes --yolo off "$consent_arg") || rc=$?
+    fi
+    [ "$rc" -ne 0 ] || fail "a batch containing a mismatched brief must fail"
+    assert_not_contains "$out" 'upstream-consent mismatch for batch-consent-a1' \
+      "the matching child must receive batch consent"
+    assert_contains "$out" 'upstream-consent mismatch for batch-consent-a2' \
+      "each child must validate the forwarded consent against its brief"
+    assert_contains "$out" 'this spawn passed github.com/example/firstmate' \
+      "the child must receive normalized consent"
+    assert_absent "$home/state/batch-consent-a2.meta" "a mismatched child must write no metadata"
+  done
+  pass "fm-spawn.sh: batch children receive and validate consent with both flag spellings"
+}
+
 test_promote_gate_on_self_repo() {
   local home meta out rc
   home=$(make_role_home promote-user)
@@ -690,6 +717,7 @@ test_brief_consent_flag_bounds
 test_brief_self_repo_pre_gate
 test_spawn_gate_on_self_repo
 test_spawn_consent_agreement
+test_spawn_batch_consent_agreement
 test_promote_gate_on_self_repo
 test_secondmate_spawn_refuses_consent_flag
 
