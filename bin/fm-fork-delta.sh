@@ -63,7 +63,7 @@
 #   symbol bin/fm-teardown.sh FM_ROOT
 # feature #4 landed proofs: false refusals of squash-merged or unfetched work
 #   owned bin/fm-fork-landed-lib.sh
-#   hook bin/fm-teardown.sh +10 -1 source guard and line, work_is_landed, push proof, two refusal prints, and #3's closure call
+#   hook bin/fm-teardown.sh +19 -17 source guard and line, work_is_landed, push proof, two refusal prints, #3's closure call, and terminal PR route parsing
 #   hook tests/fm-teardown.test.sh +470 -1 fork cases until they move to tests/fm-fork-landed.test.sh
 #   hook tests/fm-gotmp.test.sh +2 -0 link this library into both hand-picked teardown fixtures
 #   symbol bin/fm-teardown.sh work_is_landed
@@ -84,7 +84,7 @@
 # feature #6 task bootstrap: fresh worktrees lacked prepared dependencies; with #13-#15 pooled-slot fixes
 #   owned bin/fm-task-bootstrap.sh
 #   owned tests/fm-task-bootstrap.test.sh
-#   hook bin/fm-spawn.sh +95 -1 bootstrap call, abort cleanup, slot warning, and header prose
+#   hook bin/fm-spawn.sh +96 -1 bootstrap call, abort cleanup, slot warning, header prose, and batch consent forwarding
 #   hook tests/fm-spawn-pool-base-freshen.test.sh +151 -1 #13-#15 regressions, including reissued-slot warnings
 #   symbol bin/fm-spawn.sh spawn_abort_cleanup
 #   symbol bin/fm-spawn.sh validate_spawn_worktree
@@ -100,14 +100,21 @@
 #   hook tests/fm-supervision-host.test.sh +12 -1 stop each case's registered homes on pass
 # feature Pi 1.2.0 before_agent_start: the new Pi raises the event for custom-message runs without a prompt, and the fork supports both Pi type surfaces
 #   hook .pi/extensions/fm-primary-pi-watch.ts +10 -2 the "prompt" in event guard; upstream #7248's messageType guard does not compile against the older single-type event
-#   hook .pi/extensions/fm-branch-supervision.ts +8 -0 the same user-prompt narrowing for the branch supervision extension
+#   hook .pi/extensions/fm-branch-supervision.ts +14 -6 preserve legacy prompt mirroring and track custom processing runs before prompt narrowing
 #   hook tests/fm-pi-watch-extension.test.sh +18 -2 the custom-event negative test beside the user-prompt consumption
-#   hook tests/fm-pi-branch-extension.test.sh +19 -0 the same negative test for branch supervision
+#   hook tests/fm-pi-branch-extension.test.sh +22 -2 custom-event regression and bounded subprocess completion waits
 #   hook docs/pi-supervision-branch.md +2 -1 custom-message events without prompt stage no captain mirror
 #   hook docs/verification/runtime-backends.md +33 -0 dated verification evidence for both Pi type surfaces
 # feature document-step prose corrections: the pipeline's document step corrected upstream prose where it disagreed with the fork's behaviour
 #   hook docs/configuration.md +2 -1 Claude attribution settings reach a secondmate through its per-launch settings file
 #   hook docs/gerrit-forge-integration.md +3 -4 fm-project-mode.sh's header owns the accepted forge and delivery-mode combinations
+# feature accepted sync review fixes: preserve publication consent, portable test timeouts, complete CI verification, and terminal PR selection
+#   hook tests/fm-self-repo-role.test.sh +28 -0 batch consent forwarding regressions
+#   hook tests/fm-backend-herdr.test.sh +3 -1 portable fm_run_timed helper
+#   hook bin/fm-pr-merge.sh +3 -1 reject malformed combined-status pages
+#   hook tests/fm-pr-merge.test.sh +34 -0 malformed and null-status pagination regressions
+#   hook bin/fm-review-diff.sh +9 -16 terminal PR route parsing
+#   hook tests/fm-review-diff.test.sh +16 -12 ambiguous owner and repository PR route regressions
 # feature fork delta check: this script and its regression test
 #   owned bin/fm-fork-delta.sh
 #   owned tests/fm-fork-delta.test.sh
