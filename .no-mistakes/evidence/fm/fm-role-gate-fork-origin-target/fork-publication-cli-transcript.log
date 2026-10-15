@@ -1,0 +1,941 @@
++ set -u
+++ dirname tests/fm-fork-publication-target.test.sh
++ . tests/lib.sh
+++ '[' -n '' ']'
+++ FM_TEST_LIB_SOURCED=1
+++ umask 022
++++ dirname tests/lib.sh
+++ . tests/git-config-helpers.sh
++++ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
++++ GIT_CONFIG_GLOBAL=/dev/null
++++ GIT_CONFIG_NOSYSTEM=1
++++ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+++ export FM_GATE_REFUSE_BYPASS=1
+++ FM_GATE_REFUSE_BYPASS=1
+++ export FM_TEST_SEAM=1
+++ FM_TEST_SEAM=1
+++ unset FM_TASK_ID
+++ unset TASKS_AXI_FILE TASKS_AXI_BACKEND
+++++ dirname tests/lib.sh
++++ cd tests/..
++++ pwd
+++ ROOT=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q
++++ fm_test_tmpdir
++++ local base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp physical
++++ base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ '[' -n /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp ']'
++++ case "$base" in
+++++ CDPATH=
+++++ cd -- /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
+++++ pwd -P
++++ physical=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ '[' -e /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.git ']'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
+++ FM_TEST_TMPDIR=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
+++ FM_TEST_CLEANUP_DIRS=()
++++ mktemp /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-cleanup.2653246.XXXXXX
+++ FM_TEST_CLEANUP_REGISTRY=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-cleanup.2653246.JY0NYJ
++++ fm_test_pid_identity 2653246
++++ local pid=2653246
++++ FM_STATE_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ bash -c '. "$1"; fm_pid_identity "$2"' _ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-wake-lib.sh 2653246
+++ FM_TEST_OWNER_IDENTITY='linux-starttime=16473296 cmdline-hex=62617368002d780074657374732f666d2d666f726b2d7075626c69636174696f6e2d7461726765742e746573742e736800'
++++ mktemp /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-procevent.2653246.XXXXXX
+++ FM_TEST_PROCEVENT_REGISTRY=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-procevent.2653246.XJT38t
++++ mktemp /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-watcher.2653246.XXXXXX
+++ FM_TEST_WATCHER_REGISTRY=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-watcher.2653246.4BGeqq
+++ FM_TEST_STUB_MAX_BLOCK_SECONDS=120
+++ export FM_TEST_STUB_MAX_BLOCK_SECONDS
+++ trap fm_test_cleanup EXIT
+++ trap 'fm_test_cleanup; exit 130' INT
+++ trap 'fm_test_cleanup; exit 143' TERM
+++ trap 'fm_test_cleanup; exit 129' HUP
+++ trap 'fm_test_cleanup; exit 131' QUIT
+++ FM_TEST_ORPHAN_MAX_AGE_SECONDS=3600
+++ '[' 0 '!=' 1 ']'
+++ fm_test_reap_orphans
+++ local marker dir mtime now owner_pid owner_identity current_identity
++++ date +%s
+++ now=1792105962
+++ for marker in "$FM_TEST_TMPDIR"/fm-*/.fm-test-fixture
+++ '[' -e '/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-*/.fm-test-fixture' ']'
+++ continue
++ ROLE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh
++ BRIEF=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-brief.sh
++ TARGET=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh
+++ fm_test_tmproot fm-fork-publication-target
+++ local prefix=fm-fork-publication-target root tmp_base
++++ fm_test_tmpdir
++++ local base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp physical
++++ base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ '[' -n /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp ']'
++++ case "$base" in
+++++ CDPATH=
+++++ cd -- /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
+++++ pwd -P
++++ physical=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ '[' -e /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.git ']'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
+++ tmp_base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
+++ tmp_base=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp
++++ mktemp -d /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.XXXXXX
+++ root=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
++++ cd -P -- /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
++++ pwd -P
+++ root=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
+++ printf '%s\n%s\n' 2653246 'linux-starttime=16473296 cmdline-hex=62617368002d780074657374732f666d2d666f726b2d7075626c69636174696f6e2d7461726765742e746573742e736800'
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
++ TMP_ROOT=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
++ FORK=github.com/someone/firstmate-fork
++ PARENT=github.com/kunchenguid/firstmate
++ CODE_ROOT=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
++ git init -q /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
++ fx_git /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root commit -q --allow-empty -m root
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m root
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root remote add origin https://github.com/kunchenguid/firstmate.git
++ test_origin_target_authority base-on-origin origin=base
++ local proj out rc
+++ make_fork_clone base-on-origin origin=base
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin config remote.origin.gh-resolved base
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
++ out=github.com/someone/firstmate-fork
++ rc=0
++ expect_code 0 0 'base-on-origin must select the fork (got: github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=base-on-origin must select the fork (got: github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/someone/firstmate-fork github.com/someone/firstmate-fork 'the fork target must be origin'\''s normalized identity'
++ '[' github.com/someone/firstmate-fork = github.com/someone/firstmate-fork ']'
++++ make_role_home fork-maint 'maintainer github.com/someone/firstmate-fork'
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/data
++++ '[' 2 -ge 2 ']'
++++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
++ out='authorized: maintainer scope github.com/someone/firstmate-fork'
++ rc=0
++ expect_code 0 0 'a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_contains 'authorized: maintainer scope github.com/someone/firstmate-fork' 'authorized: maintainer scope github.com/someone/firstmate-fork' 'the authority must name the fork scope'
++ case "$1" in
++ :
++++ make_role_home fork-user
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/data
++++ '[' 1 -ge 2 ']'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/base-on-origin
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork'
++ rc=1
++ expect_code 1 1 'a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ local expected=1 actual=1 'label=a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' 'no publication authority for github.com/someone/firstmate-fork' 'the refusal must name the fork as the target'
++ case "$1" in
++ :
++ assert_not_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' github.com/kunchenguid/firstmate 'the refusal must not name the parent nothing is sent to'
++ case "$1" in
++ :
++ pass 'base-on-origin: the guard judges the fork, and a fork maintainer scope authorizes it'
++ printf 'ok - %s\n' 'base-on-origin: the guard judges the fork, and a fork maintainer scope authorizes it'
+ok - base-on-origin: the guard judges the fork, and a fork maintainer scope authorizes it
++ test_origin_target_authority unset-default
++ local proj out rc
+++ make_fork_clone unset-default
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default remote add upstream https://github.com/kunchenguid/firstmate.git
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
++ out=github.com/someone/firstmate-fork
++ rc=0
++ expect_code 0 0 'unset-default must select the fork (got: github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=unset-default must select the fork (got: github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/someone/firstmate-fork github.com/someone/firstmate-fork 'the fork target must be origin'\''s normalized identity'
++ '[' github.com/someone/firstmate-fork = github.com/someone/firstmate-fork ']'
++++ make_role_home fork-maint 'maintainer github.com/someone/firstmate-fork'
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/data
++++ '[' 2 -ge 2 ']'
++++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
++ out='authorized: maintainer scope github.com/someone/firstmate-fork'
++ rc=0
++ expect_code 0 0 'a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_contains 'authorized: maintainer scope github.com/someone/firstmate-fork' 'authorized: maintainer scope github.com/someone/firstmate-fork' 'the authority must name the fork scope'
++ case "$1" in
++ :
++++ make_role_home fork-user
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/data
++++ '[' 1 -ge 2 ']'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/unset-default
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork'
++ rc=1
++ expect_code 1 1 'a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ local expected=1 actual=1 'label=a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' 'no publication authority for github.com/someone/firstmate-fork' 'the refusal must name the fork as the target'
++ case "$1" in
++ :
++ assert_not_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' github.com/kunchenguid/firstmate 'the refusal must not name the parent nothing is sent to'
++ case "$1" in
++ :
++ pass 'unset-default: the guard judges the fork, and a fork maintainer scope authorizes it'
++ printf 'ok - %s\n' 'unset-default: the guard judges the fork, and a fork maintainer scope authorizes it'
+ok - unset-default: the guard judges the fork, and a fork maintainer scope authorizes it
++ test_origin_target_authority origin-names-other origin=another/firstmate
++ local proj out rc
+++ make_fork_clone origin-names-other origin=another/firstmate
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other config remote.origin.gh-resolved another/firstmate
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
++ out=github.com/someone/firstmate-fork
++ rc=0
++ expect_code 0 0 'origin-names-other must select the fork (got: github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=origin-names-other must select the fork (got: github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/someone/firstmate-fork github.com/someone/firstmate-fork 'the fork target must be origin'\''s normalized identity'
++ '[' github.com/someone/firstmate-fork = github.com/someone/firstmate-fork ']'
++++ make_role_home fork-maint 'maintainer github.com/someone/firstmate-fork'
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/data
++++ '[' 2 -ge 2 ']'
++++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
++ out='authorized: maintainer scope github.com/someone/firstmate-fork'
++ rc=0
++ expect_code 0 0 'a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_contains 'authorized: maintainer scope github.com/someone/firstmate-fork' 'authorized: maintainer scope github.com/someone/firstmate-fork' 'the authority must name the fork scope'
++ case "$1" in
++ :
++++ make_role_home fork-user
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/data
++++ '[' 1 -ge 2 ']'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-other
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork'
++ rc=1
++ expect_code 1 1 'a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ local expected=1 actual=1 'label=a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' 'no publication authority for github.com/someone/firstmate-fork' 'the refusal must name the fork as the target'
++ case "$1" in
++ :
++ assert_not_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' github.com/kunchenguid/firstmate 'the refusal must not name the parent nothing is sent to'
++ case "$1" in
++ :
++ pass 'origin-names-other: the guard judges the fork, and a fork maintainer scope authorizes it'
++ printf 'ok - %s\n' 'origin-names-other: the guard judges the fork, and a fork maintainer scope authorizes it'
+ok - origin-names-other: the guard judges the fork, and a fork maintainer scope authorizes it
++ test_origin_target_authority origin-names-parent origin=kunchenguid/firstmate
++ local proj out rc
+++ make_fork_clone origin-names-parent origin=kunchenguid/firstmate
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent config remote.origin.gh-resolved kunchenguid/firstmate
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
++ out=github.com/someone/firstmate-fork
++ rc=0
++ expect_code 0 0 'origin-names-parent must select the fork (got: github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=origin-names-parent must select the fork (got: github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/someone/firstmate-fork github.com/someone/firstmate-fork 'the fork target must be origin'\''s normalized identity'
++ '[' github.com/someone/firstmate-fork = github.com/someone/firstmate-fork ']'
++++ make_role_home fork-maint 'maintainer github.com/someone/firstmate-fork'
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/data
++++ '[' 2 -ge 2 ']'
++++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
++ out='authorized: maintainer scope github.com/someone/firstmate-fork'
++ rc=0
++ expect_code 0 0 'a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=a maintainer scope naming the fork must authorize the fork'\''s own PRs (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_contains 'authorized: maintainer scope github.com/someone/firstmate-fork' 'authorized: maintainer scope github.com/someone/firstmate-fork' 'the authority must name the fork scope'
++ case "$1" in
++ :
++++ make_role_home fork-user
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/data
++++ '[' 1 -ge 2 ']'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/fork-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/origin-names-parent
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork'
++ rc=1
++ expect_code 1 1 'a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ local expected=1 actual=1 'label=a user home must still be refused on the fork (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' 'no publication authority for github.com/someone/firstmate-fork' 'the refusal must name the fork as the target'
++ case "$1" in
++ :
++ assert_not_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' github.com/kunchenguid/firstmate 'the refusal must not name the parent nothing is sent to'
++ case "$1" in
++ :
++ pass 'origin-names-parent: the guard judges the fork, and a fork maintainer scope authorizes it'
++ printf 'ok - %s\n' 'origin-names-parent: the guard judges the fork, and a fork maintainer scope authorizes it'
+ok - origin-names-parent: the guard judges the fork, and a fork maintainer scope authorizes it
++ test_other_fork_default_targets_origin
++ local proj out rc
+++ make_fork_clone other-fork-default
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default remote add upstream https://github.com/kunchenguid/firstmate.git
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default remote add other https://github.com/another/firstmate.git
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default config remote.other.gh-resolved base
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default
++ out=github.com/someone/firstmate-fork
++ rc=0
++ expect_code 0 0 'another fork default must select origin'
++ local expected=0 actual=0 'label=another fork default must select origin'
++ '[' 0 = 0 ']'
++ assert_equals github.com/someone/firstmate-fork github.com/someone/firstmate-fork 'another fork must not select the parent'
++ '[' github.com/someone/firstmate-fork = github.com/someone/firstmate-fork ']'
++++ make_role_home other-fork-maint 'maintainer github.com/someone/firstmate-fork'
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint/data
++++ '[' 2 -ge 2 ']'
++++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/other-fork-default
++ out='authorized: maintainer scope github.com/someone/firstmate-fork'
++ rc=0
++ expect_code 0 0 'fork authority must cover origin with another fork default (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=fork authority must cover origin with another fork default (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ pass 'a default on another fork selects origin'
++ printf 'ok - %s\n' 'a default on another fork selects origin'
+ok - a default on another fork selects origin
++ test_owner_repo_resolution_naming_origin_targets_the_fork
++ local proj out rc
+++ make_fork_clone named-origin origin=SomeOne/FirstMate-Fork
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin config remote.origin.gh-resolved SomeOne/FirstMate-Fork
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/named-origin
++ out=github.com/someone/firstmate-fork
++ rc=0
++ expect_code 0 0 'an owner/repo resolution naming origin'\''s repository must select the fork (got: github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=an owner/repo resolution naming origin'\''s repository must select the fork (got: github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/someone/firstmate-fork github.com/someone/firstmate-fork 'an owner/repo resolution must normalize to origin'\''s identity'
++ '[' github.com/someone/firstmate-fork = github.com/someone/firstmate-fork ']'
++ pass 'an owner/repo gh resolution naming origin'\''s repository selects the fork'
++ printf 'ok - %s\n' 'an owner/repo gh resolution naming origin'\''s repository selects the fork'
+ok - an owner/repo gh resolution naming origin's repository selects the fork
++ test_parent_target_still_refused_without_its_grant
++ local case_name proj out rc fork_home user_home
+++ make_role_home parent-fork-maint 'maintainer github.com/someone/firstmate-fork'
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint/data
+++ '[' 2 -ge 2 ']'
+++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
++ fork_home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ make_role_home parent-user
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/data
+++ '[' 1 -ge 2 ']'
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
++ user_home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
++ for case_name in base-on-upstream renamed-parent github-parent both-resolved
++ case $case_name in
+++ make_fork_clone parent-base-on-upstream upstream=base
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream config remote.upstream.gh-resolved base
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
++ out=github.com/kunchenguid/firstmate
++ rc=0
++ expect_code 0 0 'base-on-upstream must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=base-on-upstream must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/kunchenguid/firstmate github.com/kunchenguid/firstmate 'base-on-upstream must print the normalized parent target'
++ '[' github.com/kunchenguid/firstmate = github.com/kunchenguid/firstmate ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'base-on-upstream: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=base-on-upstream: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate' 'no publication authority for github.com/kunchenguid/firstmate' 'base-on-upstream: the refusal must name the parent'
++ case "$1" in
++ :
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'base-on-upstream: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=base-on-upstream: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream upstream-consent github.com/someone/firstmate-fork
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream upstream-consent github.com/someone/firstmate-fork
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'base-on-upstream: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=base-on-upstream: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream upstream-consent github.com/kunchenguid/firstmate
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-base-on-upstream upstream-consent github.com/kunchenguid/firstmate
++ out='authorized: task consent for github.com/kunchenguid/firstmate'
++ rc=0
++ expect_code 0 0 'base-on-upstream: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=base-on-upstream: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ for case_name in base-on-upstream renamed-parent github-parent both-resolved
++ case $case_name in
+++ make_fork_clone parent-renamed-parent upstream=base
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent config remote.upstream.gh-resolved base
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent remote rename upstream parent
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent remote set-url parent git@GitHub.com:Kunchenguid/Firstmate.git
++ '[' renamed-parent = github-parent ']'
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
++ out=github.com/kunchenguid/firstmate
++ rc=0
++ expect_code 0 0 'renamed-parent must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=renamed-parent must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/kunchenguid/firstmate github.com/kunchenguid/firstmate 'renamed-parent must print the normalized parent target'
++ '[' github.com/kunchenguid/firstmate = github.com/kunchenguid/firstmate ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'renamed-parent: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=renamed-parent: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate' 'no publication authority for github.com/kunchenguid/firstmate' 'renamed-parent: the refusal must name the parent'
++ case "$1" in
++ :
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'renamed-parent: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=renamed-parent: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent upstream-consent github.com/someone/firstmate-fork
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent upstream-consent github.com/someone/firstmate-fork
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'renamed-parent: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=renamed-parent: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent upstream-consent github.com/kunchenguid/firstmate
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-renamed-parent upstream-consent github.com/kunchenguid/firstmate
++ out='authorized: task consent for github.com/kunchenguid/firstmate'
++ rc=0
++ expect_code 0 0 'renamed-parent: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=renamed-parent: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ for case_name in base-on-upstream renamed-parent github-parent both-resolved
++ case $case_name in
+++ make_fork_clone parent-github-parent upstream=base
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent config remote.upstream.gh-resolved base
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent remote rename upstream parent
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent remote set-url parent git@GitHub.com:Kunchenguid/Firstmate.git
++ '[' github-parent = github-parent ']'
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent remote rename parent github
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
++ out=github.com/kunchenguid/firstmate
++ rc=0
++ expect_code 0 0 'github-parent must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=github-parent must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/kunchenguid/firstmate github.com/kunchenguid/firstmate 'github-parent must print the normalized parent target'
++ '[' github.com/kunchenguid/firstmate = github.com/kunchenguid/firstmate ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'github-parent: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=github-parent: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate' 'no publication authority for github.com/kunchenguid/firstmate' 'github-parent: the refusal must name the parent'
++ case "$1" in
++ :
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'github-parent: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=github-parent: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent upstream-consent github.com/someone/firstmate-fork
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent upstream-consent github.com/someone/firstmate-fork
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'github-parent: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=github-parent: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent upstream-consent github.com/kunchenguid/firstmate
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-github-parent upstream-consent github.com/kunchenguid/firstmate
++ out='authorized: task consent for github.com/kunchenguid/firstmate'
++ rc=0
++ expect_code 0 0 'github-parent: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=github-parent: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ for case_name in base-on-upstream renamed-parent github-parent both-resolved
++ case $case_name in
+++ make_fork_clone parent-both-resolved origin=base upstream=base
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved config remote.origin.gh-resolved base
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved config remote.upstream.gh-resolved base
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
++ out=github.com/kunchenguid/firstmate
++ rc=0
++ expect_code 0 0 'both-resolved must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=both-resolved must return the explicit parent target (got: github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/kunchenguid/firstmate github.com/kunchenguid/firstmate 'both-resolved must print the normalized parent target'
++ '[' github.com/kunchenguid/firstmate = github.com/kunchenguid/firstmate ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-fork-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'both-resolved: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=both-resolved: a fork maintainer scope must not authorize publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate' 'no publication authority for github.com/kunchenguid/firstmate' 'both-resolved: the refusal must name the parent'
++ case "$1" in
++ :
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'both-resolved: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=both-resolved: a user home must be refused publishing to the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved upstream-consent github.com/someone/firstmate-fork
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved upstream-consent github.com/someone/firstmate-fork
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate'
++ rc=1
++ expect_code 1 1 'both-resolved: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ local expected=1 actual=1 'label=both-resolved: consent naming the fork must not cover the parent (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/kunchenguid/firstmate)'
++ '[' 1 = 1 ']'
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved upstream-consent github.com/kunchenguid/firstmate
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-user/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-both-resolved upstream-consent github.com/kunchenguid/firstmate
++ out='authorized: task consent for github.com/kunchenguid/firstmate'
++ rc=0
++ expect_code 0 0 'both-resolved: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ local expected=0 actual=0 'label=both-resolved: one-task consent naming the parent must still authorize it (got: authorized: task consent for github.com/kunchenguid/firstmate)'
++ '[' 0 = 0 ']'
++ pass 'an explicit parent target requires a grant naming the parent'
++ printf 'ok - %s\n' 'an explicit parent target requires a grant naming the parent'
+ok - an explicit parent target requires a grant naming the parent
++ test_parent_grant_does_not_cover_the_fork
++ local proj out rc
+++ make_fork_clone parent-grant origin=base
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant config remote.origin.gh-resolved base
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant
++++ make_role_home parent-maint 'maintainer github.com/kunchenguid/firstmate'
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint/data
++++ '[' 2 -ge 2 ']'
++++ printf '%s\n' 'maintainer github.com/kunchenguid/firstmate'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork'
++ rc=1
++ expect_code 1 1 'a parent maintainer scope must not authorize the fork target (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ local expected=1 actual=1 'label=a parent maintainer scope must not authorize the fork target (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ '[' 1 = 1 ']'
++ assert_contains 'refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork' 'no publication authority for github.com/someone/firstmate-fork' 'the refusal must name the fork'
++ case "$1" in
++ :
++++ make_role_home parent-consent
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent/data
++++ '[' 1 -ge 2 ']'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant upstream-consent github.com/kunchenguid/firstmate
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-consent/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/parent-grant upstream-consent github.com/kunchenguid/firstmate
++ out='refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork'
++ rc=1
++ expect_code 1 1 'consent naming the parent must not authorize the fork target (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ local expected=1 actual=1 'label=consent naming the parent must not authorize the fork target (got: refused: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork)'
++ '[' 1 = 1 ']'
++ pass 'authority must name the fork when the fork is the target'
++ printf 'ok - %s\n' 'authority must name the fork when the fork is the target'
+ok - authority must name the fork when the fork is the target
++ test_local_and_plain_checkouts_keep_upstream_rule
++ local proj out rc
+++ make_fork_clone local-origin origin=base
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin remote add upstream https://github.com/kunchenguid/firstmate.git
+++ for pair in "$@"
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin config remote.origin.gh-resolved base
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin remote set-url origin /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/local-origin
++ out=
++ rc=1
++ expect_code 1 1 'a local-path origin must not select a fork target (got: )'
++ local expected=1 actual=1 'label=a local-path origin must not select a fork target (got: )'
++ '[' 1 = 1 ']'
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain
++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain
++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain remote set-url origin https://github.com/someone/firstmate-fork.git
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain
++ out=github.com/someone/firstmate-fork
++ rc=0
++ expect_code 0 0 'an origin-only checkout without a gh default must select origin (got: github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=an origin-only checkout without a gh default must select origin (got: github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
++ assert_equals github.com/someone/firstmate-fork github.com/someone/firstmate-fork 'the origin-only target must name the fork'
++ '[' github.com/someone/firstmate-fork = github.com/someone/firstmate-fork ']'
++++ make_role_home plain-maint 'maintainer github.com/someone/firstmate-fork'
++++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint
++++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint/data
++++ '[' 2 -ge 2 ']'
++++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
++++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint
+++ check_as /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint
+++ shift
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain-maint/config
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-role.sh check /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/plain
++ out='authorized: maintainer scope github.com/someone/firstmate-fork'
++ rc=0
++ expect_code 0 0 'upstream'\''s rule must still select origin when it is the only remote (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ local expected=0 actual=0 'label=upstream'\''s rule must still select origin when it is the only remote (got: authorized: maintainer scope github.com/someone/firstmate-fork)'
++ '[' 0 = 0 ']'
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/not-a-repo
++ out=
++ rc=1
++ expect_code 1 1 'a missing project must leave upstream'\''s rule'
++ local expected=1 actual=1 'label=a missing project must leave upstream'\''s rule'
++ '[' 1 = 1 ']'
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-fork-publication-target.sh
++ out='usage: fm-fork-publication-target.sh <git-dir>'
++ rc=2
++ expect_code 2 2 'a missing argument must be a usage error'
++ local expected=2 actual=2 'label=a missing argument must be a usage error'
++ '[' 2 = 2 ']'
++ pass 'local-path remotes and plain checkouts keep upstream'\''s publication target'
++ printf 'ok - %s\n' 'local-path remotes and plain checkouts keep upstream'\''s publication target'
+ok - local-path remotes and plain checkouts keep upstream's publication target
++ test_brief_gate_names_the_fork
++ local proj home out rc
+++ make_fork_clone brief-fork
+++ local clone=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork pair
+++ shift
+++ git clone -q --shared --no-checkout /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork remote set-url origin https://github.com/someone/firstmate-fork.git
+++ git -C /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork remote add upstream https://github.com/kunchenguid/firstmate.git
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork
++ proj=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork
+++ make_role_home brief-user
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user
+++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/data
+++ '[' 1 -ge 2 ']'
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user
++ home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/config
+++ FM_DATA_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/data
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-brief.sh brief-fork-a some-proj --mode no-mistakes --project /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork
++ out='error: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork
+error: to let this home publish to github.com/someone/firstmate-fork, write '\''maintainer github.com/someone/firstmate-fork'\'' into /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/config/firstmate-role (docs/configuration.md "Firstmate role"), or pass --upstream-consent github.com/someone/firstmate-fork for this one task with the captain'\''s explicit approval'
++ rc=1
++ expect_code 1 1 'a user home must be refused a publishing brief on the fork (got: error: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork
+error: to let this home publish to github.com/someone/firstmate-fork, write '\''maintainer github.com/someone/firstmate-fork'\'' into /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/config/firstmate-role (docs/configuration.md "Firstmate role"), or pass --upstream-consent github.com/someone/firstmate-fork for this one task with the captain'\''s explicit approval)'
++ local expected=1 actual=1 'label=a user home must be refused a publishing brief on the fork (got: error: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork
+error: to let this home publish to github.com/someone/firstmate-fork, write '\''maintainer github.com/someone/firstmate-fork'\'' into /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/config/firstmate-role (docs/configuration.md "Firstmate role"), or pass --upstream-consent github.com/someone/firstmate-fork for this one task with the captain'\''s explicit approval)'
++ '[' 1 = 1 ']'
++ assert_contains 'error: this home runs as firstmate user/operator and holds no publication authority for github.com/someone/firstmate-fork
+error: to let this home publish to github.com/someone/firstmate-fork, write '\''maintainer github.com/someone/firstmate-fork'\'' into /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-user/config/firstmate-role (docs/configuration.md "Firstmate role"), or pass --upstream-consent github.com/someone/firstmate-fork for this one task with the captain'\''s explicit approval' 'write '\''maintainer github.com/someone/firstmate-fork'\''' 'the remedy must name the fork scope'
++ case "$1" in
++ :
+++ make_role_home brief-maint 'maintainer github.com/someone/firstmate-fork'
+++ local home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint
+++ mkdir -p /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/config /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/state /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/data
+++ '[' 2 -ge 2 ']'
+++ printf '%s\n' 'maintainer github.com/someone/firstmate-fork'
+++ printf '%s\n' /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint
++ home=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint
+++ FM_ROOT_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/code-root
+++ FM_HOME=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint
+++ FM_CONFIG_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/config
+++ FM_DATA_OVERRIDE=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/data
+++ /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/bin/fm-brief.sh brief-fork-b some-proj --mode no-mistakes --project /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-fork
++ out='scaffolded: /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/data/brief-fork-b/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})'
++ rc=0
++ expect_code 0 0 'a fork maintainer home must scaffold the fork'\''s publishing brief (got: scaffolded: /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/data/brief-fork-b/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC}))'
++ local expected=0 actual=0 'label=a fork maintainer home must scaffold the fork'\''s publishing brief (got: scaffolded: /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI/brief-maint/data/brief-fork-b/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC}))'
++ '[' 0 = 0 ']'
++ pass 'fm-brief.sh: the self-repository gate judges the fork and its maintainer scope'
++ printf 'ok - %s\n' 'fm-brief.sh: the self-repository gate judges the fork and its maintainer scope'
+ok - fm-brief.sh: the self-repository gate judges the fork and its maintainer scope
++ echo '# all fm-fork-publication-target tests passed'
+# all fm-fork-publication-target tests passed
++ fm_test_cleanup
++ local d
++ fm_test_reap_watchers
++ local state lock_home 'seen=
+'
++ '[' -f /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-watcher.2653246.4BGeqq ']'
++ IFS=
++ read -r state
++ rm -f /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-watcher.2653246.4BGeqq
++ fm_test_reap_procevent_homes
++ local home claim_root 'seen=
+'
++ '[' -f /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-procevent.2653246.XJT38t ']'
++ IFS='	'
++ read -r home claim_root
++ rm -f /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-procevent.2653246.XJT38t
++ for d in "${FM_TEST_CLEANUP_DIRS[@]:-}"
++ '[' -n '' ']'
++ '[' -f /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-cleanup.2653246.JY0NYJ ']'
++ IFS=
++ read -r d
++ '[' -n /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI ']'
++ fm_test_remove_tree /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
++ local dir=/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
++ '[' -d /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI ']'
++ '[' '!' -L /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI ']'
++ find /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI -type d -exec chmod u+rwx '{}' +
++ rm -rf /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/fm-fork-publication-target.cwrLqI
++ IFS=
++ read -r d
++ rm -f /home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M50WZJTRFV5TP0MA5NFWYS8Q/.test-tmp/.fm-test-cleanup.2653246.JY0NYJ
