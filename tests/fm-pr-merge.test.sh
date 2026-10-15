@@ -2390,6 +2390,39 @@ test_forgejo_combined_status_reads_every_page() {
   pass "fm-pr-merge reads every Forgejo combined-status page before merging"
 }
 
+test_forgejo_status_payload_validation() {
+  local case_dir rc page payload variant=0
+  for page in 1 2; do
+    for payload in '{"message":"API error","url":"https://forgejo.example/api"}' \
+      '{"state":"success"}' '{"state":"success","statuses":false}' \
+      '{"statuses":[]}' '{"state":null,"statuses":null}'; do
+      variant=$((variant + 1))
+      case_dir=$(make_forgejo_case "forgejo-invalid-status-$page-$variant")
+      if [ "$page" -eq 1 ]; then
+        printf '%s\n' "$payload" > "$case_dir/tea-status.json"
+      else
+        printf '%s\n' "$payload" > "$case_dir/tea-status-page$page.json"
+      fi
+      rc=0
+      run_pr_merge "$case_dir" task-x1 "$FJ_URL" \
+        > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+      expect_code 1 "$rc" "malformed status page $page must refuse"
+      assert_grep 'the combined commit status is "unreadable", not success' "$case_dir/stderr" \
+        "malformed status page must be unreadable"
+      [ -z "$(tea_merge_line "$case_dir/tea.log")" ] \
+        || fail "malformed status page must prevent merging"
+    done
+  done
+  case_dir=$(make_forgejo_case forgejo-null-status-end)
+  printf '{"state":"","total_count":0,"statuses":null}\n' > "$case_dir/tea-status-page2.json"
+  rc=0
+  run_pr_merge "$case_dir" task-x1 "$FJ_URL" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "a valid null-status page must terminate green pagination"
+  [ -n "$(tea_merge_line "$case_dir/tea.log")" ] || fail "valid null-status terminator must permit merging"
+  pass "fm-pr-merge validates every status page and accepts null-status terminators"
+}
+
 test_forgejo_stale_recorded_head_is_reported() {
   local case_dir rc merge_line
   case_dir=$(make_forgejo_case forgejo-stale-head)
@@ -2982,6 +3015,7 @@ test_forgejo_refuses_when_login_is_ambiguous
 test_forgejo_each_condition_refuses_independently
 test_forgejo_unconfigured_ci_refuses_as_none
 test_forgejo_combined_status_reads_every_page
+test_forgejo_status_payload_validation
 test_forgejo_stale_recorded_head_is_reported
 test_forgejo_invalid_head_refuses
 test_forgejo_missing_tool_refuses_before_recording
