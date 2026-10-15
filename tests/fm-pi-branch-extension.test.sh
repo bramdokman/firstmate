@@ -1066,6 +1066,22 @@ await fire("before_agent_start", { prompt: unsolicitedPrompt }, mainCtx);
 entries.push({ type: "message", message: { role: "user", content: unsolicitedPrompt } });
 await fire("agent_start", {}, mainCtx);
 await fire("agent_end", {}, mainCtx);
+// Pi 1.2.0 also raises before_agent_start for a run an idle custom message
+// opened (sendMessage with triggerTurn); that variant carries the starting
+// message and no prompt, and must stage no captain mirror - older Pi never
+// raised the event for extension-triggered runs at all. The processing
+// presentation itself opens such a run, so a handler that read event.prompt
+// here would throw on it.
+const customRunMessage = {
+  role: "custom",
+  customType: "fm-branch-process",
+  content: "processing presentation opened this run",
+  display: false,
+};
+await fire("before_agent_start", { messageType: "custom", message: customRunMessage }, mainCtx);
+entries.push({ type: "message", message: customRunMessage });
+await fire("agent_start", {}, mainCtx);
+await fire("agent_end", {}, mainCtx);
 const legacyOperational = "⁣FIRSTMATE_OP: give me a fresh system-resource report.";
 await fire("before_agent_start", { prompt: legacyOperational }, mainCtx);
 entries.push({ type: "message", message: { role: "user", content: legacyOperational } });
@@ -1124,6 +1140,9 @@ if (mirroredCaptainText.some((text) =>
   text.includes("operational watcher injection") || text.includes("FIRSTMATE_OP: give me a fresh system-resource report")
 )) {
   throw new Error("canonical current or legacy operational input entered captain mirror context");
+}
+if (mirroredCaptainText.some((text) => text.includes("processing presentation opened this run"))) {
+  throw new Error("a custom-triggered before_agent_start run entered captain mirror context");
 }
 if ((globalThis.__fmPrompts ?? []).length !== 5) throw new Error("a handled fleet wake was rerun");
 let processingRequests = sentToMain.filter((sent) => sent.message.customType === "fm-branch-process");
