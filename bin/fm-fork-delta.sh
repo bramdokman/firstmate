@@ -98,6 +98,16 @@
 #   symbol bin/fm-backend.sh fm_meta_get
 # feature supervision-host test hygiene: a case's sessions, hosts, and watchers poll until stopped, so each case stops them as it passes instead of loading every later case
 #   hook tests/fm-supervision-host.test.sh +12 -1 stop each case's registered homes on pass
+# feature Pi 1.2.0 before_agent_start: the new Pi raises the event for custom-message runs without a prompt, and the fork supports both Pi type surfaces
+#   hook .pi/extensions/fm-primary-pi-watch.ts +10 -2 the "prompt" in event guard; upstream #7248's messageType guard does not compile against the older single-type event
+#   hook .pi/extensions/fm-branch-supervision.ts +8 -0 the same user-prompt narrowing for the branch supervision extension
+#   hook tests/fm-pi-watch-extension.test.sh +18 -2 the custom-event negative test beside the user-prompt consumption
+#   hook tests/fm-pi-branch-extension.test.sh +19 -0 the same negative test for branch supervision
+#   hook docs/pi-supervision-branch.md +2 -1 custom-message events without prompt stage no captain mirror
+#   hook docs/verification/runtime-backends.md +33 -0 dated verification evidence for both Pi type surfaces
+# feature document-step prose corrections: the pipeline's document step corrected upstream prose where it disagreed with the fork's behaviour
+#   hook docs/configuration.md +2 -1 Claude attribution settings reach a secondmate through its per-launch settings file
+#   hook docs/gerrit-forge-integration.md +3 -4 fm-project-mode.sh's header owns the accepted forge and delivery-mode combinations
 # feature fork delta check: this script and its regression test
 #   owned bin/fm-fork-delta.sh
 #   owned tests/fm-fork-delta.test.sh
