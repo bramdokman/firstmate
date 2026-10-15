@@ -1,0 +1,28 @@
+== run 1
+exit=0
+37
+ok - a captured delta is applied, acknowledged, and re-armed without a handler
+ok - NUL bytes are normalized in place before shell line processing
+ok - local document storage failures remain retryable until delivery succeeds
+ok - nested remote reports relay while an undeliverable foreign pointer fails open
+ok - an undeliverable structured offer fails open with one note and never a decision
+ok - a failed pointer extraction never commits a partial delta
+ok - a failed mirror write never drops status content or advances the cursor
+ok - source-line identity survives commit failure and cursor-loss recapture
+ok - a re-arm before the next launch is adopted by the live reply listener
+ok - a failed remote read exits instead of relistening
+== run 2
+exit=0
+37
+ok - a captured delta is applied, acknowledged, and re-armed without a handler
+ok - NUL bytes are normalized in place before shell line processing
+ok - local document storage failures remain retryable until delivery succeeds
+ok - nested remote reports relay while an undeliverable foreign pointer fails open
+ok - an undeliverable structured offer fails open with one note and never a decision
+ok - a failed pointer extraction never commits a partial delta
+ok - a failed mirror write never drops status content or advances the cursor
+ok - source-line identity survives commit failure and cursor-loss recapture
+ok - a re-arm before the next launch is adopted by the live reply listener
+ok - a failed remote read exits instead of relistening
+== run 3
+(run 3 interrupted by the 600s background harness limit while still passing; not a test failure)
