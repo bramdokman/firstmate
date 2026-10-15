@@ -19,7 +19,8 @@
 // queued while main is streaming joins the running run without ever raising
 // before_agent_start, so waiting on that event stalls every later close.
 // Consumption is tracked only so a replacement can replay a follow-up Pi had
-// not consumed. An idle main consumes at before_agent_start; a streaming main
+// not consumed. An idle main consumes at before_agent_start only when the event
+// carries a user prompt; custom-message events consume nothing. A streaming main
 // consumes at the user message_start carrying the exact wake text; either
 // event finishes the pending record, and a still-unconsumed record rides the
 // replacement handoff.
@@ -1200,7 +1201,14 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on?.("before_agent_start", (event) => {
-    if (event.messageType !== "user") return;
+    // Pi 1.2.0 also raises this event for a run an idle custom message opened
+    // (sendMessage with triggerTurn); that variant carries the starting message
+    // and no prompt, and the older Pi supported here never raised the event for
+    // those runs at all. The "prompt" in event check narrows Pi 1.2.0's
+    // BeforeAgentStartEvent union to the user-prompt variant and still compiles
+    // against the older single-type event, which has no messageType, so wake
+    // consumption stays bound to user-prompt runs on both.
+    if (!("prompt" in event)) return;
     consumeWake(generation, event.prompt);
   });
   pi.on?.("message_start", (event) => {

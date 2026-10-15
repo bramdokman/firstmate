@@ -3456,7 +3456,7 @@ await replacement.handlers.get("session_shutdown")?.({ type: "session_shutdown",
 const finalMod = await import(`${pathToFileURL(process.env.PLUGIN).href}?replacement=idle-followup`);
 const finalSession = makePi();
 finalMod.default(finalSession.pi);
-const { unlinkSync } = await import("node:fs");
+const { existsSync, unlinkSync } = await import("node:fs");
 unlinkSync(`${process.env.FM_HOME}/state/.lock`);
 await finalSession.handlers.get("session_start")?.({ type: "session_start", reason: "new" }, {});
 if (finalSession.prompts.length !== 0) throw new Error("lockless replacement adopted its handoff early");
@@ -3470,7 +3470,22 @@ await waitFor(
 if (finalSession.prompts.filter((message) => message.includes("signal: streaming queued actionable outcome")).length !== 1) {
   throw new Error(`second replacement did not replay the idle queued follow-up exactly once: ${finalSession.prompts.join(" | ")}`);
 }
-finalSession.handlers.get("before_agent_start")?.({ messageType: "user", prompt: finalSession.prompts[0] }, {});
+// Pi 1.2.0 also raises before_agent_start for a run an idle custom message
+// opened (sendMessage with triggerTurn); that variant carries the starting
+// message and no prompt, and must consume no pending wake - older Pi never
+// raised the event for extension-triggered runs at all.
+finalSession.handlers.get("before_agent_start")?.(
+  {
+    messageType: "custom",
+    message: { role: "custom", customType: "fm-branch-process", content: finalSession.prompts[0], display: false },
+  },
+  {},
+);
+await new Promise((resolve) => setTimeout(resolve, 20));
+if (!existsSync(`${process.env.FM_HOME}/state/extensions/pi-primary-watch/session-replacement-actionable.json`)) {
+  throw new Error("a custom-triggered before_agent_start consumed the pending wake");
+}
+finalSession.handlers.get("before_agent_start")?.({ prompt: finalSession.prompts[0] }, {});
 await new Promise((resolve) => setTimeout(resolve, 20));
 process.exit(0);
 EOF
@@ -5136,6 +5151,7 @@ printf 'watcher: healthy pid=1 (beacon 0s)\n'
 SH
   cat > "$repo/bin/fm-turnend-guard.sh" <<'SH'
 #!/usr/bin/env bash
+cat >/dev/null
 printf 'guard\n' >> "${FM_GUARD_LOG:?}"
 printf 'guard ran after external healthy watcher\n' >&2
 exit 2

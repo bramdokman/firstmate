@@ -2549,6 +2549,39 @@ ok - under the away-posture record the wake carries the verbatim read-back tail,
 
 The merge suite and the security suite dominate the wall time.
 
+### 2026-10-15 Pi 1.2.0 before_agent_start union adaptation
+
+Pi 1.2.0 (2026-10-12) turned `BeforeAgentStartEvent` into a union on `messageType`: `"user"` events carry `prompt` and `images`, and `"custom"` events - runs an idle `sendMessage(..., { triggerTurn: true })` opened, which older Pi never raised the event for - carry the starting `message` and no `prompt`.
+The mirror contract is owned by [How the branch knows what the captain said](../pi-supervision-branch.md#how-the-branch-knows-what-the-captain-said), and the consumption contract by the `Delivery versus consumption` header in `.pi/extensions/fm-primary-pi-watch.ts`.
+
+Verified on Linux x86_64, Node v26.5.1, typescript 7.0.2, with each Pi package installed into an isolated npm prefix and selected through `FM_PI_PACKAGE_DIR`:
+
+```sh
+npm install -g --prefix /tmp/pi-check @earendil-works/pi-coding-agent@1.2.0
+FM_PI_PACKAGE_DIR=/tmp/pi-check/lib/node_modules/@earendil-works/pi-coding-agent bash tests/fm-pi-primary-types.test.sh
+```
+
+```text
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 1.2.0
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 0.85.1
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 0.84.4
+```
+
+The same session repeated the 0.85.1 and 0.84.4 lines with those versions installed into the prefix instead, and ran the portable suites per suite:
+
+```sh
+bin/fm-test-run.sh tests/fm-pi-branch-extension.test.sh
+bin/fm-test-run.sh tests/fm-pi-watch-extension.test.sh
+```
+
+```text
+ok - requested and unsolicited healthy outcomes keep distinct delivery and event ownership
+ok - Pi replacement replays a streaming follow-up before consumption
+```
+
+The first suite fires a `messageType: "custom"` `before_agent_start` at the branch handler and asserts its text never enters captain mirror context; with the guard removed the same case fails at the handler's `prompt.trim()`.
+The second fires the custom variant while a wake is pending and asserts the pending record survives, then consumes through the user variant as before.
+
 ## Native Codex through Pi
 
 Verified on 2026-09-08 with Pi 0.85.1 and the installed `pi-codex-native` 0.2.1 adapter.
