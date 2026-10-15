@@ -227,6 +227,7 @@ fm_role_git_common_dir() {
 # host/owner/repo or path:<abs>. Empty when the repo has no such remote.
 fm_role_publication_target() {
   local dir=$1 remote url=
+  "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-fork-publication-target.sh" "$dir" && return 0
   for remote in upstream github origin; do
     if url=$(git -C "$dir" remote get-url "$remote" 2>/dev/null) && [ -n "$url" ]; then
       break
