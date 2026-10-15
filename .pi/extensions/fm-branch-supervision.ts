@@ -1670,6 +1670,14 @@ ${context.command}
   // synchronous read it replaces did. The generation is captured before that
   // await so a session replaced while it runs cannot be staged into.
   pi.on?.("before_agent_start", async (event, ctx) => {
+    // Pi 1.2.0 also raises this event for a run an idle custom message opened
+    // (sendMessage with triggerTurn); that variant carries the starting message
+    // and no prompt, and the older Pi supported here never raised the event for
+    // those runs at all. Selecting the user-prompt variant with "prompt" in
+    // event keeps extension-triggered runs unstaged on both Pi type surfaces:
+    // it narrows Pi 1.2.0's BeforeAgentStartEvent union and still compiles
+    // against the older single-type event, which has no messageType.
+    if (!("prompt" in event)) return;
     rememberMainModel(ctx);
     currentMainSession = ctx?.sessionManager ?? null;
     const promptGeneration = generation;
