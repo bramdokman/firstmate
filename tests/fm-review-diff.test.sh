@@ -262,18 +262,22 @@ test_forgejo_pr_url_fetches_pull_head() {
 }
 
 test_forgejo_repo_named_pulls_resolves_by_last_segment() {
-  local case_dir out
-  case_dir=$(make_case forgejo-repo-named-pulls)
-  stale_and_pr_commits "$case_dir"
-  git -C "$case_dir/wt" push -q origin "pr-head-tmp:refs/pull/7/head"
-  write_task_meta "$case_dir" \
-    "pr=https://codeberg.org/example/pulls/pulls/7"
-
-  out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
-
-  assert_contains "$out" '+pr-fixed' "forgejo-repo-named-pulls: the greedy /pulls/ split must resolve number 7"
-  assert_not_contains "$out" 'stale-local' "forgejo-repo-named-pulls: diff must not use the stale local branch"
-  pass "fm-review-diff resolves a Forgejo repo literally named pulls by the last /pulls/ segment"
+  local case_dir out target index=0
+  for target in https://codeberg.org/example/pulls/pulls/7 \
+    https://forge.example/pull/123/pulls/7 \
+    https://forge.example/123/pull/pulls/7 \
+    https://github.com/pulls/123/pull/7; do
+    index=$((index + 1))
+    case_dir=$(make_case "forgejo-route-$index")
+    stale_and_pr_commits "$case_dir"
+    git -C "$case_dir/wt" push -q origin "pr-head-tmp:refs/pull/7/head"
+    git -C "$case_dir/wt" push -q origin "HEAD:refs/pull/123/head"
+    write_task_meta "$case_dir" "pr=$target"
+    out=$(run_review_diff "$case_dir" task-x1 2> "$case_dir/stderr")
+    assert_contains "$out" '+pr-fixed' "terminal route must select PR 7 for $target"
+    assert_not_contains "$out" 'stale-local' "terminal route must avoid the stale branch for $target"
+  done
+  pass "fm-review-diff resolves the terminal PR route despite pull-named owners and repos"
 }
 
 test_forgejo_pr_url_falls_back_to_recorded_head() {

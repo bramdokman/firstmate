@@ -1111,7 +1111,7 @@ for (let index = 0; index < requestedPrompts.length; index += 1) {
   if (index < longRequests.length && content.length <= 4000) {
     throw new Error(`request fixture ${index} did not exceed the mirror bound`);
   }
-  await fire("before_agent_start", { messageType: "user", prompt: content }, mainCtx);
+  await fire("before_agent_start", index % 2 === 0 ? { prompt: content } : { messageType: "user", prompt: content }, mainCtx);
   // Pi persists this only after every before_agent_start handler has returned.
   entries.push({ type: "message", message: { role: "user", content } });
   await fire("agent_start", {}, mainCtx);
