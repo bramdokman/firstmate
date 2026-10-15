@@ -836,6 +836,34 @@ fi
 stop_reply_listener || fail "the continuity listener did not stop"
 pass "a remote reply listener stays owned across empty waits and a delta"
 
+# A replayed `handle` re-arms the source, so a same-command registration can
+# replace the listener's between its last adoption and its next launch. The
+# listener must adopt it there too: exiting as superseded left the source
+# unowned, and the next line was never captured. A fresh listener holds its
+# claim through a launch floor that outlasts the re-arm below even on a loaded
+# machine, and nothing here starts a second runner that could hide the exit.
+FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=10 \
+  remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
+wait_for "$CLAIMS/$SID.claim" || fail "the paced reply listener never claimed the source"
+HELD_PID=$(sed -n '2p' "$CLAIMS/$SID.claim")
+remote_env "$ADAPTER" arm ios >/dev/null || fail "the reply source could not be re-armed"
+printf 'working [corr=fedcbafedcbafedc]: held across a re-arm\n' \
+  >> "$REMOTE/state/parent-replies.status"
+GEN=$((GEN + 1))
+for _ in $(seq 1 300); do
+  [ -f "$PARENT/state/procevent-inbox/$SID.$GEN.handled" ] && break
+  sleep 0.1
+done
+[ -f "$PARENT/state/procevent-inbox/$SID.$GEN.handled" ] \
+  || fail "a re-arm before the next launch dropped the reply listener"
+assert_grep 'held across a re-arm' "$PARENT/state/ios.status" \
+  "the re-armed listener's capture was not mirrored"
+[ "$(reply_owner)" = live ] || fail "the reply listener released its claim after a re-arm"
+[ "$(sed -n '2p' "$CLAIMS/$SID.claim")" = "$HELD_PID" ] \
+  || fail "a re-arm before the next launch replaced the reply listener"
+stop_reply_listener || fail "the re-armed listener did not stop"
+pass "a re-arm before the next launch is adopted by the live reply listener"
+
 # A failed transport is not an empty wait: do not launch a second read under
 # the same owner, even when the launch floor is short.
 : > "$TMP_ROOT/failed-polls"
