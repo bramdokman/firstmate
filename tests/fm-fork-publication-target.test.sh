@@ -88,19 +88,39 @@ test_owner_repo_resolution_naming_origin_targets_the_fork() {
   pass "an owner/repo gh resolution naming origin's repository selects the fork"
 }
 
+test_other_fork_default_targets_origin() {
+  local proj out rc
+  proj=$(make_fork_clone other-fork-default)
+  git -C "$proj" remote add other https://github.com/another/firstmate.git
+  git -C "$proj" config remote.other.gh-resolved base
+  out=$("$TARGET" "$proj"); rc=$?
+  expect_code 0 "$rc" "another fork default must select origin"
+  assert_equals "$FORK" "$out" "another fork must not select the parent"
+  out=$(check_as "$(make_role_home other-fork-maint "maintainer $FORK")" "$proj"); rc=$?
+  expect_code 0 "$rc" "fork authority must cover origin with another fork default (got: $out)"
+  pass "a default on another fork selects origin"
+}
+
 test_parent_target_still_refused_without_its_grant() {
   local case_name proj out rc fork_home user_home
   fork_home=$(make_role_home parent-fork-maint "maintainer $FORK")
   user_home=$(make_role_home parent-user)
-  for case_name in base-on-upstream origin-names-parent both-resolved; do
+  for case_name in base-on-upstream renamed-parent github-parent both-resolved; do
     case $case_name in
     base-on-upstream) proj=$(make_fork_clone "parent-$case_name" upstream=base) ;;
-    origin-names-parent) proj=$(make_fork_clone "parent-$case_name" origin=kunchenguid/firstmate) ;;
+    renamed-parent | github-parent)
+      proj=$(make_fork_clone "parent-$case_name" upstream=base)
+      git -C "$proj" remote rename upstream parent
+      git -C "$proj" remote set-url parent 'git@GitHub.com:Kunchenguid/Firstmate.git'
+      if [ "$case_name" = github-parent ]; then
+        git -C "$proj" remote rename parent github
+      fi
+      ;;
     both-resolved) proj=$(make_fork_clone "parent-$case_name" origin=base upstream=base) ;;
     esac
     out=$("$TARGET" "$proj"); rc=$?
-    expect_code 1 "$rc" "$case_name must leave upstream's rule in place (got: $out)"
-    assert_equals "" "$out" "$case_name must print no fork target"
+    expect_code 0 "$rc" "$case_name must return the explicit parent target (got: $out)"
+    assert_equals "$PARENT" "$out" "$case_name must print the normalized parent target"
 
     out=$(check_as "$fork_home" "$proj"); rc=$?
     expect_code 1 "$rc" "$case_name: a fork maintainer scope must not authorize publishing to the parent (got: $out)"
@@ -179,6 +199,9 @@ test_brief_gate_names_the_fork() {
 
 test_origin_target_authority base-on-origin origin=base
 test_origin_target_authority unset-default
+test_origin_target_authority origin-names-other origin=another/firstmate
+test_origin_target_authority origin-names-parent origin=kunchenguid/firstmate
+test_other_fork_default_targets_origin
 test_owner_repo_resolution_naming_origin_targets_the_fork
 test_parent_target_still_refused_without_its_grant
 test_parent_grant_does_not_cover_the_fork

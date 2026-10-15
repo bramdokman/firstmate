@@ -41,30 +41,21 @@ case $origin in
   '' | path:*) exit 1 ;;
 esac
 
+parent=$(fm_role_scope_norm github.com/kunchenguid/firstmate)
 resolved=$(git -C "$dir" config --get-regexp '^remote\..*\.gh-resolved$' 2>/dev/null) || {
   rc=$?
   [ "$rc" -eq 1 ] || exit 1
-  printf '%s\n' "$origin"
-  exit 0
+  resolved=
 }
-case $resolved in
-  *$'\n'*) exit 1 ;;
-esac
-key=${resolved%% *}
-value=${resolved#* }
-[ "$key" != "$resolved" ] && [ -n "$value" ] || exit 1
-remote=${key#remote.}
-remote=${remote%.gh-resolved}
-remote_url=$(git -C "$dir" remote get-url "$remote" 2>/dev/null) || exit 1
-remote_id=$(fm_role_remote_identity "$remote_url" "$dir" nolocal)
-case $remote_id in
-  '' | path:*) exit 1 ;;
-esac
-if [ "$value" = base ]; then
-  default=$remote_id
-else
-  fm_role_scope_valid "${remote_id%%/*}/$value" || exit 1
-  default=$(fm_role_scope_norm "${remote_id%%/*}/$value")
-fi
-[ "$default" = "$origin" ] || exit 1
+while IFS=' ' read -r key _value; do
+  [ -n "$key" ] || continue
+  remote=${key#remote.}
+  remote=${remote%.gh-resolved}
+  remote_url=$(git -C "$dir" remote get-url "$remote" 2>/dev/null) || continue
+  remote_id=$(fm_role_remote_identity "$remote_url" "$dir" nolocal)
+  if [ "$remote_id" = "$parent" ]; then
+    printf '%s\n' "$parent"
+    exit 0
+  fi
+done <<< "$resolved"
 printf '%s\n' "$origin"
