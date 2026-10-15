@@ -3,12 +3,6 @@
 # target for the self-repository guard, reached through the real gate
 # (bin/fm-role.sh check, bin/fm-brief.sh --project).
 #
-# A fork checkout has origin = the fork and upstream = the parent. The guard
-# judges origin only when gh's default repository is set to origin, because
-# then both no-mistakes (which opens against origin) and direct-PR (gh) land
-# there. Every other shape keeps upstream's rule, so the parent stays the
-# target and publishing to it is refused without a grant naming it.
-#
 # Each case builds fixture repositories that share one root commit, so lineage
 # detection treats them as firstmate's own repository independent of this
 # checkout's remotes.
@@ -67,11 +61,11 @@ check_as() {  # <home> <project> [upstream-consent <scope>]
     "$ROLE" check "$@" 2>&1
 }
 
-test_default_on_origin_targets_the_fork() {
+test_origin_target_authority() {
   local proj out rc
-  proj=$(make_fork_clone base-on-origin origin=base)
+  proj=$(make_fork_clone "$1" "${@:2}")
   out=$("$TARGET" "$proj"); rc=$?
-  expect_code 0 "$rc" "gh's default on origin must select the fork (got: $out)"
+  expect_code 0 "$rc" "$1 must select the fork (got: $out)"
   assert_equals "$FORK" "$out" "the fork target must be origin's normalized identity"
 
   out=$(check_as "$(make_role_home fork-maint "maintainer $FORK")" "$proj"); rc=$?
@@ -82,7 +76,7 @@ test_default_on_origin_targets_the_fork() {
   expect_code 1 "$rc" "a user home must still be refused on the fork (got: $out)"
   assert_contains "$out" "no publication authority for $FORK" "the refusal must name the fork as the target"
   assert_not_contains "$out" "$PARENT" "the refusal must not name the parent nothing is sent to"
-  pass "gh's default on origin: the guard judges the fork, and a fork maintainer scope authorizes it"
+  pass "$1: the guard judges the fork, and a fork maintainer scope authorizes it"
 }
 
 test_owner_repo_resolution_naming_origin_targets_the_fork() {
@@ -94,16 +88,12 @@ test_owner_repo_resolution_naming_origin_targets_the_fork() {
   pass "an owner/repo gh resolution naming origin's repository selects the fork"
 }
 
-# Publishing to the parent stays refused without a grant naming it: when gh's
-# default is unset, on the parent, or ambiguous, upstream's rule applies and a
-# fork maintainer scope covers nothing.
 test_parent_target_still_refused_without_its_grant() {
   local case_name proj out rc fork_home user_home
   fork_home=$(make_role_home parent-fork-maint "maintainer $FORK")
   user_home=$(make_role_home parent-user)
-  for case_name in unset base-on-upstream origin-names-parent both-resolved; do
+  for case_name in base-on-upstream origin-names-parent both-resolved; do
     case $case_name in
-    unset) proj=$(make_fork_clone "parent-$case_name") ;;
     base-on-upstream) proj=$(make_fork_clone "parent-$case_name" upstream=base) ;;
     origin-names-parent) proj=$(make_fork_clone "parent-$case_name" origin=kunchenguid/firstmate) ;;
     both-resolved) proj=$(make_fork_clone "parent-$case_name" origin=base upstream=base) ;;
@@ -125,7 +115,7 @@ test_parent_target_still_refused_without_its_grant() {
     out=$(check_as "$user_home" "$proj" upstream-consent "$PARENT"); rc=$?
     expect_code 0 "$rc" "$case_name: one-task consent naming the parent must still authorize it (got: $out)"
   done
-  pass "the parent stays the target, refused without a grant naming it, unless gh's default is origin"
+  pass "an explicit parent target requires a grant naming the parent"
 }
 
 # A parent maintainer grant or parent consent does not leak onto the fork:
@@ -155,7 +145,8 @@ test_local_and_plain_checkouts_keep_upstream_rule() {
   git clone -q --shared --no-checkout "$CODE_ROOT" "$proj" || fail "could not clone the code root"
   git -C "$proj" remote set-url origin "https://$FORK.git"
   out=$("$TARGET" "$proj"); rc=$?
-  expect_code 1 "$rc" "an origin-only checkout without a gh default must leave upstream's rule (got: $out)"
+  expect_code 0 "$rc" "an origin-only checkout without a gh default must select origin (got: $out)"
+  assert_equals "$FORK" "$out" "the origin-only target must name the fork"
   out=$(check_as "$(make_role_home plain-maint "maintainer $FORK")" "$proj"); rc=$?
   expect_code 0 "$rc" "upstream's rule must still select origin when it is the only remote (got: $out)"
 
@@ -170,7 +161,7 @@ test_local_and_plain_checkouts_keep_upstream_rule() {
 # fork, so the captain's grant is the fork scope rather than the parent.
 test_brief_gate_names_the_fork() {
   local proj home out rc
-  proj=$(make_fork_clone brief-fork origin=base)
+  proj=$(make_fork_clone brief-fork)
   home=$(make_role_home brief-user)
   out=$(FM_ROOT_OVERRIDE="$CODE_ROOT" FM_HOME="$home" FM_CONFIG_OVERRIDE="$home/config" \
     FM_DATA_OVERRIDE="$home/data" \
@@ -186,7 +177,8 @@ test_brief_gate_names_the_fork() {
   pass "fm-brief.sh: the self-repository gate judges the fork and its maintainer scope"
 }
 
-test_default_on_origin_targets_the_fork
+test_origin_target_authority base-on-origin origin=base
+test_origin_target_authority unset-default
 test_owner_repo_resolution_naming_origin_targets_the_fork
 test_parent_target_still_refused_without_its_grant
 test_parent_grant_does_not_cover_the_fork

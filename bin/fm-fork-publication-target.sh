@@ -15,22 +15,6 @@
 # never apply, and each task needed one-task consent labelled with the parent
 # even though nothing went there.
 #
-# The target is the repository a task's pull request lands on, so this prints
-# origin only when both publishing delivery paths open their pull request there:
-#   - no-mistakes opens it against origin (`no-mistakes init --help`);
-#   - direct-PR opens it with gh, which uses an explicitly set default
-#     repository (`gh repo set-default`, recorded as remote.<name>.gh-resolved)
-#     before its own upstream, github, origin order.
-# That holds when exactly one remote carries gh-resolved and its value resolves
-# to origin's repository: `base` names that remote's own repository, and
-# `<owner>/<repo>` names that repository on the remote's host. Anything else -
-# no default set, a default on another repository, more than one resolution, or
-# an undeterminable origin - prints nothing and exits 1, so upstream's rule
-# applies unchanged and the parent stays the target. The printed identity is
-# fm_role_remote_identity's normalized form, the one a maintainer scope or task
-# consent is compared against; nothing here grants authority.
-# Exits 0 with the identity on stdout, 1 when upstream's rule applies, and 2 on
-# a usage error. Reads local git config only; no gh or network call.
 set -eu
 
 case "${1:-}" in
@@ -57,7 +41,12 @@ case $origin in
   '' | path:*) exit 1 ;;
 esac
 
-resolved=$(git -C "$dir" config --get-regexp '^remote\..*\.gh-resolved$' 2>/dev/null) || exit 1
+resolved=$(git -C "$dir" config --get-regexp '^remote\..*\.gh-resolved$' 2>/dev/null) || {
+  rc=$?
+  [ "$rc" -eq 1 ] || exit 1
+  printf '%s\n' "$origin"
+  exit 0
+}
 case $resolved in
   *$'\n'*) exit 1 ;;
 esac
