@@ -96,6 +96,8 @@
 #   symbol bin/fm-spawn.sh BACKEND
 #   symbol bin/fm-backend.sh fm_backend_kill
 #   symbol bin/fm-backend.sh fm_meta_get
+# feature supervision-host test hygiene: a case's sessions, hosts, and watchers poll until stopped, so each case stops them as it passes instead of loading every later case
+#   hook tests/fm-supervision-host.test.sh +12 -1 stop each case's registered homes on pass
 # feature fork delta check: this script and its regression test
 #   owned bin/fm-fork-delta.sh
 #   owned tests/fm-fork-delta.test.sh
