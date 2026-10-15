@@ -1,0 +1,11 @@
+fail: .pi/extensions/fm-branch-supervision.ts changes +14 -6, over its manifest budget of +8 -0
+fail: bin/fm-pr-merge.sh is in the fork delta (+3 -1) but not in the manifest
+fail: bin/fm-review-diff.sh is in the fork delta (+9 -16) but not in the manifest
+fail: bin/fm-spawn.sh changes +96 -1, over its manifest budget of +95 -1
+fail: bin/fm-teardown.sh changes +19 -17, over its manifest budget of +10 -1
+fail: tests/fm-backend-herdr.test.sh is in the fork delta (+3 -1) but not in the manifest
+fail: tests/fm-pi-branch-extension.test.sh changes +20 -1, over its manifest budget of +19 -0
+fail: tests/fm-pr-merge.test.sh is in the fork delta (+34 -0) but not in the manifest
+fail: tests/fm-review-diff.test.sh is in the fork delta (+16 -12) but not in the manifest
+fail: tests/fm-self-repo-role.test.sh is in the fork delta (+28 -0) but not in the manifest
+FM_FORK_DELTA fail base=a24f4cb873d8 upstream=a24f4cb8 paths=34 owned=9 hooks=19 hook_lines=+942/-40 symbols=30 findings=10

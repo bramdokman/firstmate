@@ -1,0 +1,14 @@
+fm-role: user (default)
+refused: this home runs as firstmate user/operator and holds no publication authority for github.com/bramdokman/firstmate
+Task-scoped matching consent
+authorized: task consent for github.com/bramdokman/firstmate
+exit=0
+Mismatching consent
+refused: this home runs as firstmate user/operator and holds no publication authority for github.com/bramdokman/firstmate
+exit=1
+Matching maintainer grant
+authorized: maintainer scope github.com/bramdokman/firstmate
+exit=0
+Malformed maintainer grant
+refused: this home runs as firstmate user/operator and holds no publication authority for github.com/bramdokman/firstmate
+exit=1

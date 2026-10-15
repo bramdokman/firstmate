@@ -1,0 +1,44 @@
+diff base: origin/main
+ feature.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/feature.txt b/feature.txt
+index df967b9..da34a17 100644
+--- a/feature.txt
++++ b/feature.txt
+@@ -1 +1 @@
+-base
++pr-fixed
+diff base: origin/main
+ feature.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/feature.txt b/feature.txt
+index df967b9..da34a17 100644
+--- a/feature.txt
++++ b/feature.txt
+@@ -1 +1 @@
+-base
++pr-fixed
+diff base: origin/main
+ feature.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/feature.txt b/feature.txt
+index df967b9..da34a17 100644
+--- a/feature.txt
++++ b/feature.txt
+@@ -1 +1 @@
+-base
++pr-fixed
+diff base: origin/main
+ feature.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/feature.txt b/feature.txt
+index df967b9..da34a17 100644
+--- a/feature.txt
++++ b/feature.txt
+@@ -1 +1 @@
+-base
++pr-fixed

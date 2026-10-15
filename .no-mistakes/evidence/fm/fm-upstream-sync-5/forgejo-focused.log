@@ -1,0 +1,2 @@
+ok - fm-pr-merge reads every Forgejo combined-status page before merging
+ok - fm-pr-merge validates every status page and accepts null-status terminators

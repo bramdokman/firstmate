@@ -1,0 +1,27 @@
+ok - live Herdr submit confirm: Claude Code (2.1.300 (Claude Code)) on herdr-ext 2026.10.03.3 (Herdr 0.9.3) reports empty and renders the requested reply in isolated session fm-lab-herdr-submit-con-1640497-10390
+ok - live Herdr submit confirm: Claude Code (2.1.300 (Claude Code)) on herdr-ext 2026.10.03.3 (Herdr 0.9.3) submits a U+2063 away-supervisor payload whose read-back drops the mark
+not ok - Claude Code (2.1.300 (Claude Code)) on herdr-ext 2026.10.03.3 (Herdr 0.9.3): a typed /exit behind its command popup was judged unsent and cleared instead of submitted
+ ▐▛███▛█   Claude Code v2.1.300
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/6fd900e7a84b/01M4ZFPN8C7SX76DMP88H99F0Y
+
+
+❯ Reply with exactly FMHERDRPONG1640223_23713 and nothing else.
+
+● FMHERDRPONG1640223_23713
+
+✻ Crunched for 2s · done 12:29 PM
+
+❯ FIRSTMATE_OP: v1 away-supervisor: Reply with exactly FMHERDROPPONG1640223_418 and nothing else.
+
+● FMHERDROPPONG1640223_418
+
+✻ Cooked for 3s · done 12:29 PM
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  cla 1 io bram@dokman.io ~/.claude │ Opus 5.5 │ ~/.no-mistakes/worktrees/6fd900e7a84b/01M4ZFPN8C7SX76DMP88H99F0Y │ …
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
+                                                                                         Ctrl+Y to paste deleted text
+{"id":"cli:agent:get","result":{"agent":{"agent":"claude","agent_status":"idle","completion_seq":5,"cwd":"/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4ZFPN8C7SX76DMP88H99F0Y","focused":true,"foreground_cwd":"/home/bd/.no-mistakes/worktrees/6fd900e7a84b/01M4ZFPN8C7SX76DMP88H99F0Y","pane_id":"w1:p1","revision":3,"state_change_seq":5,"tab_id":"w1:t1","terminal_id":"term_65dde857eeb111","terminal_title":"✳ FMHERDRPONG1640223_23713","terminal_title_stripped":"FMHERDRPONG1640223_23713","workspace_id":"w1"},"type":"agent_info"}}
