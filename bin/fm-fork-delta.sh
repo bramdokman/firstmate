@@ -115,6 +115,14 @@
 #   hook tests/fm-pr-merge.test.sh +34 -0 malformed and null-status pagination regressions
 #   hook bin/fm-review-diff.sh +9 -16 terminal PR route parsing
 #   hook tests/fm-review-diff.test.sh +16 -12 ambiguous owner and repository PR route regressions
+# feature fork publication target: this fork's PRs land on origin, so the self-repository guard judged every firstmate ship as publishing to the parent
+#   owned bin/fm-fork-publication-target.sh
+#   owned tests/fm-fork-publication-target.test.sh
+#   hook bin/fm-role-lib.sh +1 -0 fork target call at the entry of fm_role_publication_target
+#   symbol bin/fm-role-lib.sh fm_role_publication_target
+#   symbol bin/fm-role-lib.sh fm_role_remote_identity
+#   symbol bin/fm-role-lib.sh fm_role_scope_valid
+#   symbol bin/fm-role-lib.sh fm_role_scope_norm
 # feature fork delta check: this script and its regression test
 #   owned bin/fm-fork-delta.sh
 #   owned tests/fm-fork-delta.test.sh

@@ -597,7 +597,12 @@ Role is never inferred from GitHub identity, forge permissions, remotes, reposit
 `bin/fm-role.sh report` prints the resolved role with no network call, and the session-start digest shows it in the HOME ROLE subsection.
 
 `bin/fm-role-lib.sh` owns the fail-closed parser, self-repository detection, and the gate that `bin/fm-brief.sh`, `bin/fm-spawn.sh`, and `bin/fm-promote.sh` apply.
-The publication target is selected from the first configured remote in the order `upstream`, `github`, `origin`; see `bin/fm-role-lib.sh` for URL and local-path normalization.
+This fork's `bin/fm-fork-publication-target.sh` selects `origin` as the publication target when it names a forge repository.
+If any remote carrying `gh-resolved` has a URL that normalizes to `github.com/kunchenguid/firstmate`, the hook selects that parent repository instead, regardless of the remote's name or the setting's value.
+An unset default or a default on another fork keeps `origin` as the target.
+If the hook cannot resolve a forge repository from `origin`, `bin/fm-role-lib.sh` falls back to the first configured remote in the order `upstream`, `github`, `origin`.
+That library owns URL normalization and the fallback's one-hop resolution of local-path remotes.
+The regression cases in `tests/fm-fork-publication-target.test.sh` cover target selection and repository-scoped authority.
 A task's project counts as the firstmate repository when it shares the code root's lineage - the same git common dir, or a root commit of the code root's history, which every fork, the parent, and any clone of either share - computed offline; undeterminable lineage (for example a shallow clone sharing no root commit) and an undeterminable publication target are refused, even under task consent.
 Secondmate homes inherit the primary's resolved role, never its raw file: a primary file that resolves to user for any reason propagates as revocation.
 In a secondmate home the file is honored only while the inheritance receipt `config/.fm-inherit-firstmate-role.generation` proves the exact bytes the primary last published (`bin/fm-config-inherit-lib.sh`); a role file with no matching receipt or a stale grant authorizes nothing.
